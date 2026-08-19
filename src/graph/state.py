@@ -3,7 +3,7 @@ from datetime import datetime
 from dataclasses import dataclass
 from typing import List, Optional, TypedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AudioInput(BaseModel):
@@ -32,11 +32,23 @@ class PIIScanResult:
     pii_detected: bool
     affected_fields: List[str]
 
+# Add field constraints to critical models: TranscriptionSegment.confidence must have ge=0.0 and le=1.0.
+
+class TranscriptionSegment(BaseModel):
+    start: float
+    end: float
+    text: str
+    speaker: Optional[str] = None
+    confidence: float = Field(..., ge=0.0, le=1.0)
+
+class TranscriptionResult(BaseModel):
+    segments: List[TranscriptionSegment]
+
 
 class PipeLineState(TypedDict, total=False):
     audio_input: AudioInput
     intake_result: IntakeResult
-    transcription: Optional[str] = None
+    transcription: Optional[TranscriptionResult] = None
     summary: Optional[str] = None
     qa_score: Optional[float] = None
     pii_scan: PIIScanResult = None

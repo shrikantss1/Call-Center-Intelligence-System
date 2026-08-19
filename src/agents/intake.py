@@ -95,8 +95,7 @@ def run_intake(state: PipeLineState) -> PipeLineState:
         if pii_result.pii_detected:
             print(f"PII detected in metadata fields: {pii_result.affected_fields}")
             state["pii_scan"] = pii_result
-            state["intake_result"]["is_valid"] = False
-            state["intake_result"]["reason"] = f"PII detected in metadata fields: {pii_result.affected_fields}"
+            state["intake_result"] = _make_failed_result(f"PII detected in metadata fields: {pii_result.affected_fields}")
             return state
         else:
             print("No PII detected in metadata fields.")
