@@ -32,8 +32,6 @@ class PIIScanResult:
     pii_detected: bool
     affected_fields: List[str]
 
-# Add field constraints to critical models: TranscriptionSegment.confidence must have ge=0.0 and le=1.0.
-
 class TranscriptionSegment(BaseModel):
     start: float
     end: float

@@ -1,6 +1,9 @@
 import os
 import sys
 import re
+import hashlib
+import json
+import sqlite3
 from pathlib import Path
 from io import BytesIO
 
@@ -15,6 +18,9 @@ logger = get_logger("transcription")
 _model = None
 _model_size = None
 
+# Database cache path
+_CACHE_DB_PATH = os.getenv("TRANSCRIPTION_CACHE_DB", "data/agent.db")
+
 
 def _get_whisper_model(model_size: str = "small") -> WhisperModel:
     global _model, _model_size
@@ -28,6 +34,65 @@ def _get_whisper_model(model_size: str = "small") -> WhisperModel:
     return _model
 
 model = _get_whisper_model(os.getenv("WHISPER_MODEL_SIZE", "small"))
+
+
+def _compute_audio_hash(audio_bytes: bytes) -> str:
+    """Compute SHA-256 hash of audio bytes, reading in 8 KB chunks."""
+    sha256_hash = hashlib.sha256()
+    for chunk in _iter_chunks(audio_bytes, chunk_size=8192):
+        sha256_hash.update(chunk)
+    return sha256_hash.hexdigest()
+
+
+def _iter_chunks(data: bytes, chunk_size: int):
+    """Yield successive chunks from bytes."""
+    for i in range(0, len(data), chunk_size):
+        yield data[i:i + chunk_size]
+
+
+def _check_cache(audio_hash: str) -> TranscriptionResult | None:
+    """Query transcription_cache table by hash. Returns TranscriptionResult if found."""
+    try:
+        conn = sqlite3.connect(_CACHE_DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT transcription FROM transcription_cache WHERE audio_hash = ?",
+            (audio_hash,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            transcription_json = json.loads(row[0])
+            segments = [
+                TranscriptionSegment(**seg) for seg in transcription_json["segments"]
+            ]
+            logger.info(f"Cache hit for audio hash: {audio_hash}")
+            return TranscriptionResult(segments=segments)
+        return None
+    except Exception as e:
+        logger.warning(f"Cache lookup failed: {e}")
+        return None
+
+
+def _save_cache(audio_hash: str, caller_id: str | None, filename: str, transcription: TranscriptionResult) -> None:
+    """Insert transcription result into cache."""
+    try:
+        conn = sqlite3.connect(_CACHE_DB_PATH)
+        cursor = conn.cursor()
+        transcription_json = json.dumps(transcription.model_dump())
+        cursor.execute(
+            """INSERT INTO transcription_cache (audio_hash, caller_id, filename, transcription)
+               VALUES (?, ?, ?, ?)""",
+            (audio_hash, caller_id, filename, transcription_json)
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"Cached transcription for audio hash: {audio_hash}")
+    except sqlite3.IntegrityError:
+        logger.debug(f"Audio hash already in cache: {audio_hash}")
+    except Exception as e:
+        logger.warning(f"Failed to cache transcription: {e}")
 
 
 def _clean_transcript_text(text: str) -> str:
@@ -164,6 +229,7 @@ def _get_diarizer() -> SpeakerDiarizer:
 def transcribe_audio(state: PipeLineState) -> PipeLineState:
     """
     Transcribe the audio input in the given state using the Whisper model.
+    Uses cache to avoid redundant transcriptions for identical audio.
 
     Args:
         state (PipeLineState): The current state of the pipeline.
@@ -175,6 +241,14 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
     audio_input = state["audio_input"]
     audio_bytes = audio_input.audio_bytes
     filename = audio_input.filename
+    caller_id = audio_input.caller_id
+
+    # Compute hash and check cache
+    audio_hash = _compute_audio_hash(audio_bytes)
+    cached_result = _check_cache(audio_hash)
+    if cached_result:
+        state["transcription"] = cached_result
+        return state
 
     logger.info(f"Transcribing audio file: {filename}")
     audio_stream = BytesIO(audio_bytes)
@@ -190,7 +264,6 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
     segments = list(segments)
     speakers = diarizer.assign_speakers(segments)
 
-
     transcription_segments = []
     for i, seg in enumerate(segments):
         logprob_conf = max(0, min(1, 1 + seg.avg_logprob))
@@ -203,5 +276,7 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
             confidence=round(logprob_conf * 0.7 + speech_conf * 0.3, 4)
         ))
 
-    state["transcription"] = TranscriptionResult(segments=transcription_segments)
+    transcription_result = TranscriptionResult(segments=transcription_segments)
+    _save_cache(audio_hash, caller_id, filename, transcription_result)
+    state["transcription"] = transcription_result
     return state

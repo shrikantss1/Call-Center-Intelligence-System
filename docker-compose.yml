@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: sqlalchemy-sqlite-app
+    volumes:
+      # Mount the data directory to persist SQLite database files
+      - ./data:/app/data
+    ports:
+      - "3001:5000"   # or
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Uncomment the line below if you want the container to stay running
+    command: tail -f /dev/null
