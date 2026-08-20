@@ -42,6 +42,8 @@ class TranscriptionSegment(BaseModel):
 
 class TranscriptionResult(BaseModel):
     segments: List[TranscriptionSegment]
+    injection_detected: bool = False
+    injection_reason: Optional[str] = None
 
 
 class PipeLineState(TypedDict, total=False):

@@ -9,8 +9,14 @@ from io import BytesIO
 
 from faster_whisper import WhisperModel
 import torch
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from src.graph.state import PipeLineState, TranscriptionResult, TranscriptionSegment
 from src.utils.config import get_logger
+from src.security.injection_detector import INJECTION_PATTERNS
+from src.security.pii_redactor import redact_pii
+from src.security.audit import AuditLogger, Base
 
 logger = get_logger("transcription")
 
@@ -20,6 +26,11 @@ _model_size = None
 
 # Database cache path
 _CACHE_DB_PATH = os.getenv("TRANSCRIPTION_CACHE_DB", "data/agent.db")
+
+# Setup SQLAlchemy session factory for audit logging
+_engine = create_engine(f"sqlite:///{_CACHE_DB_PATH}", echo=False)
+Base.metadata.create_all(_engine)
+_SessionFactory = sessionmaker(bind=_engine)
 
 
 def _get_whisper_model(model_size: str = "small") -> WhisperModel:
@@ -226,6 +237,14 @@ def _get_diarizer() -> SpeakerDiarizer:
     return _diarizer
 
 
+def _check_injection_patterns(text: str) -> tuple[bool, str | None]:
+    """Check if text matches any injection patterns. Returns (is_safe, pattern_name)."""
+    for pattern, pattern_name in INJECTION_PATTERNS:
+        if re.search(pattern, text):
+            return False, pattern_name
+    return True, None
+
+
 def transcribe_audio(state: PipeLineState) -> PipeLineState:
     """
     Transcribe the audio input in the given state using the Whisper model.
@@ -242,41 +261,126 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
     audio_bytes = audio_input.audio_bytes
     filename = audio_input.filename
     caller_id = audio_input.caller_id
+    call_id = audio_input.call_id or f"unknown_{hash(audio_bytes) % 1000000}"
 
-    # Compute hash and check cache
-    audio_hash = _compute_audio_hash(audio_bytes)
-    cached_result = _check_cache(audio_hash)
-    if cached_result:
-        state["transcription"] = cached_result
+    try:
+        with AuditLogger(_SessionFactory) as audit:
+            # Log transcription start
+            audit.log(
+                call_id=call_id,
+                action="TRANSCRIPTION_STARTED",
+                caller_id=caller_id or "unknown",
+                details={"filename": filename, "audio_hash_partial": _compute_audio_hash(audio_bytes)[:8]}
+            )
+
+            # Compute hash and check cache
+            audio_hash = _compute_audio_hash(audio_bytes)
+            cached_result = _check_cache(audio_hash)
+            if cached_result:
+                audit.log(
+                    call_id=call_id,
+                    action="TRANSCRIPTION_CACHE_HIT",
+                    caller_id=caller_id or "unknown",
+                    details={"audio_hash": audio_hash, "segments_count": len(cached_result.segments)}
+                )
+                state["transcription"] = cached_result
+                return state
+
+            audit.log(
+                call_id=call_id,
+                action="TRANSCRIPTION_CACHE_MISS",
+                caller_id=caller_id or "unknown",
+                details={"audio_hash": audio_hash, "filename": filename}
+            )
+
+        logger.info(f"Transcribing audio file: {filename}")
+        audio_stream = BytesIO(audio_bytes)
+        segments, info = model.transcribe(
+            audio_stream,
+            beam_size=1,
+            vad_filter=True,
+            vad_parameters={"min_silence_duration_ms": 300},
+            word_timestamps=True,
+            condition_on_previous_text=False)
+
+        segments = list(segments)
+
+        # Check for injection patterns in raw transcribed text before further processing
+        injection_detected = False
+        injection_reason = None
+
+        for segment in segments:
+            is_safe, pattern_name = _check_injection_patterns(segment.text)
+            if not is_safe:
+                logger.warning(f"Injection pattern detected: {pattern_name} in segment")
+                injection_detected = True
+                injection_reason = f"Suspicious pattern detected: {pattern_name}"
+                break
+
+        # If injection detected, log and return early
+        if injection_detected:
+            with AuditLogger(_SessionFactory) as audit:
+                audit.log(
+                    call_id=call_id,
+                    action="INJECTION_DETECTED",
+                    caller_id=caller_id or "unknown",
+                    details={"reason": injection_reason, "filename": filename}
+                )
+            transcription_result = TranscriptionResult(
+                segments=[],
+                injection_detected=True,
+                injection_reason=injection_reason
+            )
+            state["transcription"] = transcription_result
+            return state
+
+        diarizer = _get_diarizer()
+        speakers = diarizer.assign_speakers(segments)
+
+        transcription_segments = []
+        for i, seg in enumerate(segments):
+            logprob_conf = max(0, min(1, 1 + seg.avg_logprob))
+            speech_conf = 1 - seg.no_speech_prob
+            cleaned_text = _clean_transcript_text(seg.text)
+            redacted_text = redact_pii(cleaned_text)
+            transcription_segments.append(TranscriptionSegment(
+                start=seg.start,
+                end=seg.end,
+                speaker=(speakers[i] if i < len(speakers) else "Unknown"),
+                text=redacted_text,
+                confidence=round(logprob_conf * 0.7 + speech_conf * 0.3, 4)
+            ))
+
+        transcription_result = TranscriptionResult(
+            segments=transcription_segments,
+            injection_detected=False,
+            injection_reason=None
+        )
+
+        _save_cache(audio_hash, caller_id, filename, transcription_result)
+
+        with AuditLogger(_SessionFactory) as audit:
+            audit.log(
+                call_id=call_id,
+                action="TRANSCRIPTION_COMPLETED",
+                caller_id=caller_id or "unknown",
+                details={
+                    "segments_count": len(transcription_segments),
+                    "filename": filename,
+                    "audio_hash": audio_hash
+                }
+            )
+
+        state["transcription"] = transcription_result
         return state
 
-    logger.info(f"Transcribing audio file: {filename}")
-    audio_stream = BytesIO(audio_bytes)
-    segments, info = model.transcribe(
-        audio_stream,
-        beam_size=1,
-        vad_filter=True,
-        vad_parameters={"min_silence_duration_ms": 300},
-        word_timestamps=True,
-        condition_on_previous_text=False)
-
-    diarizer = _get_diarizer()
-    segments = list(segments)
-    speakers = diarizer.assign_speakers(segments)
-
-    transcription_segments = []
-    for i, seg in enumerate(segments):
-        logprob_conf = max(0, min(1, 1 + seg.avg_logprob))
-        speech_conf = 1 - seg.no_speech_prob
-        transcription_segments.append(TranscriptionSegment(
-            start=seg.start,
-            end=seg.end,
-            speaker=(speakers[i] if i < len(speakers) else "Unknown"),
-            text=_clean_transcript_text(seg.text),
-            confidence=round(logprob_conf * 0.7 + speech_conf * 0.3, 4)
-        ))
-
-    transcription_result = TranscriptionResult(segments=transcription_segments)
-    _save_cache(audio_hash, caller_id, filename, transcription_result)
-    state["transcription"] = transcription_result
-    return state
+    except Exception as e:
+        logger.error(f"Transcription failed for {filename}: {str(e)}")
+        with AuditLogger(_SessionFactory) as audit:
+            audit.log(
+                call_id=call_id,
+                action="TRANSCRIPTION_FAILED",
+                caller_id=caller_id or "unknown",
+                details={"error": str(e), "filename": filename}
+            )
+        raise
