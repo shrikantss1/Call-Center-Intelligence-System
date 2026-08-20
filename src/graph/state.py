@@ -10,6 +10,7 @@ class AudioInput(BaseModel):
     audio_bytes: bytes
     filename: str
     caller_id: Optional[str] = None
+    call_id: Optional[str] = None
     department: Optional[str] = None
     timestamp: Optional[datetime] = None
 

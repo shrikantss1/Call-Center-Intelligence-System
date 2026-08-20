@@ -69,8 +69,8 @@ def run_intake(state: PipeLineState) -> PipeLineState:
         PipeLineState: The updated state after running the intake process.
     """
     # generate uuid for the audio input
-    if "audio_input" in state and state["audio_input"] is None:
-        state["audio_input"].caller_id = str(uuid.uuid4())
+    if "audio_input" in state and state["audio_input"] is not None:
+        state["audio_input"].call_id = str(uuid.uuid4())
 
     validation_result = validate_audio(state["audio_input"].audio_bytes, state["audio_input"].filename)
     if not validation_result.is_valid:

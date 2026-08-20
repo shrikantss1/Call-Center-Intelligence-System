@@ -23,6 +23,7 @@ def init_transcription_cache_table():
             CREATE TABLE IF NOT EXISTS transcription_cache (
                 audio_hash TEXT PRIMARY KEY,
                 caller_id TEXT,
+                call_id TEXT,
                 filename TEXT,
                 transcription TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
