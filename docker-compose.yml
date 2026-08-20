@@ -11,5 +11,4 @@ services:
       - "3001:5000"   # or
     environment:
       - PYTHONUNBUFFERED=1
-    # Uncomment the line below if you want the container to stay running
-    command: tail -f /dev/null
+    command: sh -c "python -m src.database.init_db && tail -f /dev/null"
