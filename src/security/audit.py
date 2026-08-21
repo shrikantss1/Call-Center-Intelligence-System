@@ -1,10 +1,11 @@
 import json
 import logging
-from datetime import datetime
 import sqlite3
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
+from src.database.models import AuditLogEntry
+from src.database.models import Base
 from tests import data
 import os
 
@@ -12,25 +13,7 @@ import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("audit_logger")
 
-Base = declarative_base()
-
 _CACHE_DB_PATH = os.getenv("TRANSCRIPTION_CACHE_DB", "data/agent.db")
-
-# ==========================================
-# 1. Database Model (SQLite Table)
-# ==========================================
-class AuditEntry(Base):
-    __tablename__ = "audit_entries"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    call_id = Column(String(50), nullable=False, index=True)
-    action = Column(String(100), nullable=False)
-    caller_id = Column(String(100), nullable=False)
-    details = Column(Text, nullable=True)  # Stored as a serialized JSON string
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f"<AuditEntry(call_id='{self.call_id}', action='{self.action}')>"
 
 # ==========================================
 # 2. AuditLogger Implementation
@@ -58,7 +41,7 @@ class AuditLogger:
         serialized_data = json.dumps(details) if isinstance(details, (dict, list)) else str(details) if details else None
 
         # Instantiate the database entity
-        entry = AuditEntry(
+        entry = AuditLogEntry(
             call_id=call_id,
             action=action,
             caller_id=caller_id,
@@ -149,7 +132,7 @@ if __name__ == "__main__":
     # --- Verify Database State ---
     print("\n--- Verifying Final Database Entries ---")
     db_session = SessionFactory()
-    all_entries = db_session.query(AuditEntry).all()
+    all_entries = db_session.query(AuditLogEntry).all()
     print(f"Total rows written to SQLite: {len(all_entries)}")
     for item in all_entries:
         print(f" - Found Row: ID={item.id}, CallID={item.call_id}, Action={item.action}, Details={item.details}")

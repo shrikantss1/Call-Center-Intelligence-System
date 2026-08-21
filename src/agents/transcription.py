@@ -2,21 +2,20 @@ import os
 import sys
 import re
 import hashlib
-import json
-import sqlite3
 from pathlib import Path
 from io import BytesIO
 
 from faster_whisper import WhisperModel
 import torch
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from src.database.models import Base, TranscriptionCache
+from src.database.connection import get_engine, session_scope
 from src.graph.state import PipeLineState, TranscriptionResult, TranscriptionSegment
 from src.utils.config import get_logger
 from src.security.injection_detector import INJECTION_PATTERNS
 from src.security.pii_redactor import redact_pii
-from src.security.audit import AuditLogger, Base
+from src.security.audit import AuditLogger
 
 logger = get_logger("transcription")
 
@@ -24,11 +23,8 @@ logger = get_logger("transcription")
 _model = None
 _model_size = None
 
-# Database cache path
-_CACHE_DB_PATH = os.getenv("TRANSCRIPTION_CACHE_DB", "data/agent.db")
-
-# Setup SQLAlchemy session factory for audit logging
-_engine = create_engine(f"sqlite:///{_CACHE_DB_PATH}", echo=False)
+# Setup engine and session factory for audit logging
+_engine = get_engine(f"sqlite:///{os.getenv('TRANSCRIPTION_CACHE_DB', 'data/agent.db')}")
 Base.metadata.create_all(_engine)
 _SessionFactory = sessionmaker(bind=_engine)
 
@@ -64,46 +60,40 @@ def _iter_chunks(data: bytes, chunk_size: int):
 def _check_cache(audio_hash: str) -> TranscriptionResult | None:
     """Query transcription_cache table by hash. Returns TranscriptionResult if found."""
     try:
-        conn = sqlite3.connect(_CACHE_DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT transcription FROM transcription_cache WHERE audio_hash = ?",
-            (audio_hash,)
-        )
-        row = cursor.fetchone()
-        conn.close()
+        with session_scope(_engine) as session:
+            cache_entry = session.query(TranscriptionCache).filter(
+                TranscriptionCache.audio_hash == audio_hash
+            ).first()
 
-        if row:
-            transcription_json = json.loads(row[0])
-            segments = [
-                TranscriptionSegment(**seg) for seg in transcription_json["segments"]
-            ]
-            logger.info(f"Cache hit for audio hash: {audio_hash}")
-            return TranscriptionResult(segments=segments)
+            if cache_entry:
+                transcription_json = cache_entry.transcription_json
+                segments = [
+                    TranscriptionSegment(**seg) for seg in transcription_json["segments"]
+                ]
+                logger.info(f"Cache hit for audio hash: {audio_hash}")
+                return TranscriptionResult(segments=segments)
         return None
     except Exception as e:
         logger.warning(f"Cache lookup failed: {e}")
         return None
 
 
-def _save_cache(audio_hash: str, caller_id: str | None, filename: str, transcription: TranscriptionResult) -> None:
+def _save_cache(audio_hash: str, transcription: TranscriptionResult) -> None:
     """Insert transcription result into cache."""
     try:
-        conn = sqlite3.connect(_CACHE_DB_PATH)
-        cursor = conn.cursor()
-        transcription_json = json.dumps(transcription.model_dump())
-        cursor.execute(
-            """INSERT INTO transcription_cache (audio_hash, caller_id, filename, transcription)
-               VALUES (?, ?, ?, ?)""",
-            (audio_hash, caller_id, filename, transcription_json)
-        )
-        conn.commit()
-        conn.close()
+        with session_scope(_engine) as session:
+            transcription_json = transcription.model_dump()
+            cache_entry = TranscriptionCache(
+                audio_hash=audio_hash,
+                transcription_json=transcription_json
+            )
+            session.add(cache_entry)
         logger.info(f"Cached transcription for audio hash: {audio_hash}")
-    except sqlite3.IntegrityError:
-        logger.debug(f"Audio hash already in cache: {audio_hash}")
     except Exception as e:
-        logger.warning(f"Failed to cache transcription: {e}")
+        if "UNIQUE constraint failed" in str(e):
+            logger.debug(f"Audio hash already in cache: {audio_hash}")
+        else:
+            logger.warning(f"Failed to cache transcription: {e}")
 
 
 def _clean_transcript_text(text: str) -> str:
@@ -358,7 +348,7 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
             call_id=call_id
         )
 
-        _save_cache(audio_hash, caller_id, filename, transcription_result)
+        _save_cache(audio_hash, transcription_result)
 
         with AuditLogger(_SessionFactory) as audit:
             audit.log(

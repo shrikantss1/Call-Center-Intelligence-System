@@ -66,6 +66,18 @@ class QAScoringResult(BaseModel):
     reason: Optional[str] = None
     call_id: Optional[str] = None
 
+class CallReport(BaseModel):
+    call_id: str
+    timestamp: str
+    audio_filename: Optional[str] = None
+    transcription: Optional[TranscriptionResult] = None
+    transcript_text: Optional[str] = None
+    summary: Optional[str] = None
+    qa_scores: Optional[QAScoringResult] = None
+    pii_scan: PIIScanResult = None
+    status: str
+    error: Optional[str] = None
+
 class PipeLineState(TypedDict, total=False):
     audio_input: AudioInput
     intake_result: IntakeResult
@@ -73,6 +85,7 @@ class PipeLineState(TypedDict, total=False):
     summary: Optional[SummaryResult] = None
     qa_score: Optional[QAScoringResult] = None
     pii_scan: PIIScanResult = None
+    call_report: Optional[CallReport] = None
     error: Optional[str] = None
     state: Optional[str] = None
 

@@ -10,10 +10,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from graph.state import PIIScanResult, PipeLineState
+from src.database.models import Base
 from utils.audio import validate_audio
 import uuid
 from utils.audio import extract_audio_properties, validate_audio_duration
-from security.audit import AuditLogger, Base
+from security.audit import AuditLogger
 
 
 
