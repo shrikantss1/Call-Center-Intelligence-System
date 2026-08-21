@@ -52,12 +52,26 @@ class SummaryResult(BaseModel):
     reason: Optional[str] = None
     call_id: Optional[str] = None
 
+class QAScoringResult(BaseModel):
+    professionalism: int = Field(..., ge=1, le=5, description="Agent professionalism score (1-5)")
+    empathy: int = Field(..., ge=1, le=5, description="Agent empathy score (1-5)")
+    problem_resolution: int = Field(..., ge=1, le=5, description="Problem resolution effectiveness (1-5)")
+    compliance: int = Field(..., ge=1, le=5, description="Compliance adherence (1-5)")
+    communication_clarity: int = Field(..., ge=1, le=5, description="Communication clarity (1-5)")
+    overall_score: float = Field(..., ge=1.0, le=5.0, description="Computed overall score (overridden after LLM response)")
+    justification: str = Field(..., description="Coaching-style justification with timestamp citations (MM:SS format)")
+    compliance_flag: bool = Field(default=False, description="True if genuine procedural violations detected")
+    compliance_details: Optional[str] = Field(default=None, description="Details on compliance issues if flagged")
+    is_valid: bool = True
+    reason: Optional[str] = None
+    call_id: Optional[str] = None
+
 class PipeLineState(TypedDict, total=False):
     audio_input: AudioInput
     intake_result: IntakeResult
     transcription: Optional[TranscriptionResult] = None
     summary: Optional[SummaryResult] = None
-    qa_score: Optional[float] = None
+    qa_score: Optional[QAScoringResult] = None
     pii_scan: PIIScanResult = None
     error: Optional[str] = None
     state: Optional[str] = None
