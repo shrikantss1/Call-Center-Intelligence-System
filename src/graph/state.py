@@ -44,13 +44,19 @@ class TranscriptionResult(BaseModel):
     segments: List[TranscriptionSegment]
     injection_detected: bool = False
     injection_reason: Optional[str] = None
+    call_id: Optional[str] = None
 
+class SummaryResult(BaseModel):
+    summary: str = Field(..., description="The summarized text of the transcription.")
+    is_valid: bool = True
+    reason: Optional[str] = None
+    call_id: Optional[str] = None
 
 class PipeLineState(TypedDict, total=False):
     audio_input: AudioInput
     intake_result: IntakeResult
     transcription: Optional[TranscriptionResult] = None
-    summary: Optional[str] = None
+    summary: Optional[SummaryResult] = None
     qa_score: Optional[float] = None
     pii_scan: PIIScanResult = None
     error: Optional[str] = None

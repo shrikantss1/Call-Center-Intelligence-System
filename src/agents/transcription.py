@@ -354,7 +354,8 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
         transcription_result = TranscriptionResult(
             segments=transcription_segments,
             injection_detected=False,
-            injection_reason=None
+            injection_reason=None,
+            call_id=call_id
         )
 
         _save_cache(audio_hash, caller_id, filename, transcription_result)
