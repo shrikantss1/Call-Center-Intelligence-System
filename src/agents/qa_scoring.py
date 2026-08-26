@@ -71,6 +71,7 @@ The scale 1-5 is calibrated as follows. **A score of 3 represents baseline compe
 - **Write like a coach, not a critic**. Frame feedback constructively: "At 01:20, the agent could have acknowledged the caller's frustration more explicitly" rather than "The agent was uncaring."
 - **Be concrete**. Don't just say "good empathy"—cite the moment that demonstrated it.
 - **Connect to the rubric**. Explain why a score aligns with the 1-5 rubric you're using.
+- **Segment the justification by dimension**. Produce a separate justification for each score in the output JSON, using distinct keys such as "Professionalism": "<justification>", "Empathy": "<justification>", "Problem_Resolution": "<justification>", "Compliance": "<justification>", and "Communication_Clarity": "<justification>". Add a new line after every justification for readability.
 
 ## OUTPUT INSTRUCTIONS
 
