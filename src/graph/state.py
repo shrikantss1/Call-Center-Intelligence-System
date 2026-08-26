@@ -74,7 +74,7 @@ class CallReport(BaseModel):
     transcript_text: Optional[str] = None
     summary: Optional[str] = None
     qa_scores: Optional[QAScoringResult] = None
-    pii_scan: PIIScanResult = None
+    pii_scan: Optional[PIIScanResult] = None
     status: str
     error: Optional[str] = None
 
@@ -84,7 +84,7 @@ class PipeLineState(TypedDict, total=False):
     transcription: Optional[TranscriptionResult] = None
     summary: Optional[SummaryResult] = None
     qa_score: Optional[QAScoringResult] = None
-    pii_scan: PIIScanResult = None
+    pii_scan: Optional[PIIScanResult] = None
     call_report: Optional[CallReport] = None
     error: Optional[str] = None
     state: Optional[str] = None
