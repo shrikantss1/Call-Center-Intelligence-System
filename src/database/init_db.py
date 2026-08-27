@@ -21,7 +21,8 @@ def init_transcription_cache_table():
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS transcription_cache (
-                audio_hash TEXT PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                audio_hash TEXT NOT NULL UNIQUE,
                 caller_id TEXT,
                 call_id TEXT,
                 filename TEXT,
@@ -33,6 +34,11 @@ def init_transcription_cache_table():
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_caller_id
             ON transcription_cache(caller_id)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_audio_hash
+            ON transcription_cache(audio_hash)
         """)
 
         conn.commit()

@@ -61,15 +61,16 @@ def _iter_chunks(data: bytes, chunk_size: int):
 def _check_cache(audio_hash: str) -> TranscriptionResult | None:
     """Query transcription_cache table by hash. Returns TranscriptionResult if found."""
     try:
+        logger.info(f"Checking cache for audio hash: {audio_hash}")
         with session_scope(_engine) as session:
             cache_entry = session.query(TranscriptionCache).filter(
                 TranscriptionCache.audio_hash == audio_hash
             ).first()
 
             if cache_entry:
-                transcription_json = cache_entry.transcription_json
+                transcription = cache_entry.transcription
                 segments = [
-                    TranscriptionSegment(**seg) for seg in transcription_json["segments"]
+                    TranscriptionSegment(**seg) for seg in transcription["segments"]
                 ]
                 logger.info(f"Cache hit for audio hash: {audio_hash}")
                 return TranscriptionResult(segments=segments)
@@ -83,10 +84,10 @@ def _save_cache(audio_hash: str, transcription: TranscriptionResult) -> None:
     """Insert transcription result into cache."""
     try:
         with session_scope(_engine) as session:
-            transcription_json = transcription.model_dump()
+            transcription = transcription.model_dump()
             cache_entry = TranscriptionCache(
                 audio_hash=audio_hash,
-                transcription=transcription_json
+                transcription=transcription
             )
             session.add(cache_entry)
         logger.info(f"Cached transcription for audio hash: {audio_hash}")

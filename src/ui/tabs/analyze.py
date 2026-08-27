@@ -56,7 +56,7 @@ def create_analyze_tab() -> dict:
     # Audio Input Section
     gr.Markdown("### Audio Input")
     audio_input = gr.Audio(
-        type="numpy",
+        type="filepath",
         sources=["upload", "microphone"],
         label="Upload Audio or Record",
     )

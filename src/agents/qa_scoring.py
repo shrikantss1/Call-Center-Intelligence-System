@@ -178,6 +178,13 @@ Provide fair, baseline-anchored scores across all five dimensions. Be specific w
             state["qa_score"] = scoring_result
             state["state"] = "qa_scoring_complete"
             logger.info("QA scoring completed for call_id=%s with overall_score=%s", call_id or "unknown", scoring_result.overall_score)
+            with AuditLogger(_SessionFactory) as audit:
+                    audit.log(
+                        call_id=call_id or "unknown",
+                        action="QA_SCORING_COMPLETED",
+                        caller_id="unknown",
+                        details={"transcript_segments": len(transcription.segments), "summary_available": summary is not None}
+                    )
             break
 
         except Exception as e:

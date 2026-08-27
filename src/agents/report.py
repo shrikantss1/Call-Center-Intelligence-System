@@ -106,6 +106,7 @@ def persist_report(state: PipeLineState) -> PipeLineState:
 
     logger.info("Persisting report for call_id=%s", state.get("call_report").call_id if state.get("call_report") else "unknown")
     try:
+        original_state = state.get("state")
         state = compile_report(state)
         report = state["call_report"]
         logger.info("Writing report to database for call_id=%s with status=%s", report.call_id, report.status)
@@ -123,7 +124,10 @@ def persist_report(state: PipeLineState) -> PipeLineState:
             )
             session.add(call_record)
             session.commit()
-            state["state"] = "persisted"
+            if original_state in ("intake_failed", "error", "flagged_for_review", "supervisor_review"):
+                state["state"] = original_state
+            else:
+                state["state"] = "persisted"
             logger.info("Report persisted successfully for call_id=%s", report.call_id)
         finally:
             session.close()

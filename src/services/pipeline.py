@@ -6,8 +6,13 @@ import os
 import tempfile
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 import numpy as np
+
+try:
+    from pydub import AudioSegment
+except ImportError:
+    AudioSegment = None
 
 from src.graph.state import PipeLineState, AudioInput, QAScoringResult
 from src.app_globals import get_agent
@@ -54,16 +59,77 @@ def _add_temp_file(filepath: str):
     _cleanup_old_temp_files()
 
 
-def _write_audio_to_wav(audio_data: Tuple[int, np.ndarray]) -> Tuple[str, bytes]:
-    """Write Gradio audio tuple to a temporary WAV file and return path and bytes.
+def _load_audio_from_file(filepath: str) -> Tuple[int, np.ndarray]:
+    """Load audio from a file and convert to numpy array.
 
     Args:
-        audio_data: Tuple of (sample_rate, audio_array) from gr.Audio
+        filepath: Path to the audio file
+
+    Returns:
+        Tuple of (sample_rate, audio_array)
+
+    Raises:
+        ValueError: If the file cannot be decoded or is not a valid audio file
+    """
+    if not os.path.exists(filepath):
+        raise ValueError("Audio file not found")
+
+    # Try to load with pydub for format flexibility
+    if AudioSegment is not None:
+        try:
+            audio = AudioSegment.from_file(filepath)
+            sample_rate = audio.frame_rate
+            samples = np.array(audio.get_array_of_samples())
+
+            # Handle stereo/mono
+            if audio.channels == 2:
+                samples = samples.reshape((-1, 2))
+
+            # Convert to float in range [-1, 1]
+            samples = samples.astype(np.float32) / 32768.0
+
+            return sample_rate, samples
+        except Exception as e:
+            error_msg = str(e)
+            if "ffmpeg" in error_msg.lower() or "decode" in error_msg.lower():
+                raise ValueError("Invalid or corrupted audio file. Please ensure the file is a valid audio format (MP3, WAV, etc.)")
+            raise ValueError(f"Failed to load audio file: {error_msg}")
+
+    # Fallback to wave module for WAV files only
+    try:
+        with wave.open(filepath, 'rb') as wav_file:
+            n_channels = wav_file.getnchannels()
+            sample_rate = wav_file.getframerate()
+            n_frames = wav_file.getnframes()
+            audio_data = wav_file.readframes(n_frames)
+            samples = np.frombuffer(audio_data, dtype=np.int16)
+
+            if n_channels == 2:
+                samples = samples.reshape((-1, 2))
+
+            samples = samples.astype(np.float32) / 32768.0
+            return sample_rate, samples
+    except Exception as e:
+        raise ValueError("Invalid or corrupted audio file. Please ensure the file is a valid audio format (MP3, WAV, etc.)")
+
+
+def _write_audio_to_wav(audio_data: Union[Tuple[int, np.ndarray], str]) -> Tuple[str, bytes]:
+    """Convert audio to WAV format. Handles both numpy arrays and file paths.
+
+    Args:
+        audio_data: Either a tuple of (sample_rate, audio_array) or a filepath string
 
     Returns:
         Tuple of (path to the temporary WAV file, WAV file bytes)
+
+    Raises:
+        ValueError: If audio cannot be read or converted
     """
-    sample_rate, audio_array = audio_data
+    # If it's a filepath, load the audio first
+    if isinstance(audio_data, str):
+        sample_rate, audio_array = _load_audio_from_file(audio_data)
+    else:
+        sample_rate, audio_array = audio_data
 
     # Ensure audio is in int16 format
     if np.issubdtype(audio_array.dtype, np.floating):
@@ -132,7 +198,7 @@ def _format_transcript(final_state: dict) -> str:
         confidence_marker = ""
 
         # Add [LOW CONF] marker if confidence is below threshold
-        if seg.confidence < 0.7:
+        if seg.confidence < 0.5:
             confidence_marker = " [LOW CONF]"
 
         line = f"{timestamp} {speaker}: {text}{confidence_marker}"
@@ -201,14 +267,14 @@ def format_qa(qa_data: dict) -> str:
 
 
 def process_call(
-    audio_data: Tuple[int, np.ndarray],
+    audio_data: Union[str, Tuple[int, np.ndarray]],
     caller_id: Optional[str] = None,
     department: Optional[str] = None,
 ) -> PipelineResult:
     """Process a call recording through the analysis pipeline.
 
     Args:
-        audio_data: Tuple of (sample_rate, audio_array) from gr.Audio
+        audio_data: Either a filepath to an audio file or tuple of (sample_rate, audio_array)
         caller_id: Optional caller ID
         department: Optional department
 
@@ -226,7 +292,7 @@ def process_call(
         )
 
     try:
-        # Write audio to temp WAV file and get bytes
+        # Write audio to temp WAV file and get bytes (handles both filepath and tuple formats)
         wav_path, wav_bytes = _write_audio_to_wav(audio_data)
 
         # Create initial state with audio input
@@ -316,11 +382,15 @@ def process_call(
 
     except Exception as e:
         logger.error(f"Pipeline processing failed: {e}", exc_info=True)
+        error_msg = str(e).strip()
+        # Truncate very long error messages (e.g., ffmpeg output)
+        if len(error_msg) > 500:
+            error_msg = error_msg[:500] + "..."
         return PipelineResult(
             transcript="",
             summary="",
             qa_scores="",
             pdf_path=None,
             json_path=None,
-            error=f"❌ Processing error: {str(e)}",
+            error=f"❌ {error_msg}",
         )

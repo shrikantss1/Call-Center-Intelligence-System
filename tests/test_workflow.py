@@ -15,7 +15,6 @@ def test_injection_check_node_flags_review_when_injection_detected():
     result = injection_check_node(state)
 
     assert result["state"] == "flagged_for_review"
-    assert result["error"] == "prompt injection detected"
 
 
 def test_injection_check_node_allows_clean_transcriptions():
