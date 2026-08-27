@@ -1,7 +1,8 @@
-import pytest
 from dataclasses import FrozenInstanceError
 
-from src.utils.config import load_config, Config
+import pytest
+
+from src.utils.config import Config, load_config
 
 
 def test_load_config_requires_llm_provider(monkeypatch):

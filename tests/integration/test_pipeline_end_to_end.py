@@ -1,19 +1,17 @@
-import os
-import pytest
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
-from src.graph.workflow import build_workflow
+import pytest
+
 from src.graph.state import (
     AudioInput,
-    AudioProperties,
-    TranscriptionResult,
-    TranscriptionSegment,
-    SummaryResult,
     QAScoringResult,
+    SummaryResult,
 )
-from src.utils.audio import ValidationResult, AudioProperties as AudioPropertiesUtil
+from src.graph.workflow import build_workflow
+from src.utils.audio import AudioProperties as AudioPropertiesUtil
+from src.utils.audio import ValidationResult
 
 
 @pytest.fixture

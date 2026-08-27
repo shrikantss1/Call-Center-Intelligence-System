@@ -1,5 +1,7 @@
-import pytest
 import re
+
+import pytest
+
 from src.security.injection_detector import INJECTION_PATTERNS
 
 

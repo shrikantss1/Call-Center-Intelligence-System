@@ -1,6 +1,7 @@
 """Main Gradio app builder for Call Center Intelligence System."""
 
 import gradio as gr
+
 from src.ui.tabs.analyze import create_analyze_tab
 from src.ui.tabs.observability import create_observability_tab
 

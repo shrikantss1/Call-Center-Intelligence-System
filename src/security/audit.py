@@ -1,13 +1,11 @@
 import json
 import logging
-import sqlite3
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.database.models import AuditLogEntry
-from src.database.models import Base
-from tests import data
-import os
+from src.database.models import AuditLogEntry, Base
 
 # Setup basic internal logging to see what is happening under the hood
 logging.basicConfig(level=logging.INFO)
@@ -20,7 +18,7 @@ _CACHE_DB_PATH = os.getenv("TRANSCRIPTION_CACHE_DB", "data/agent.db")
 # ==========================================
 class AuditLogger:
     """Manages the lifecycle of database sessions specifically for creating audit entries."""
-    
+
     def __init__(self, session_factory):
         """Initializes with a pre-configured sessionmaker factory."""
         self.session_factory = session_factory
@@ -66,7 +64,7 @@ class AuditLogger:
         finally:
             # Crucial for SQLite to prevent 'Database is locked' errors
             self._session.close()
-            
+
         return False  # Let any underlying non-db exceptions bubble up naturally
 
 
@@ -79,53 +77,53 @@ if __name__ == "__main__":
     engine = create_engine(f"sqlite:///{_CACHE_DB_PATH}", echo=False)
 
     # conn =sqlite3.connect(_CACHE_DB_PATH)
-    
+
     # Create the 'audit_entries' table in the database
     Base.metadata.create_all(engine)
-    
+
     # Create the global session factory
     SessionFactory = sessionmaker(bind=engine)
 
     # --- Scenario 1: Successful Writes ---
     print("\n--- Running Scenario 1 (Success) ---")
-    
+
     # Pass the session factory into your logger
     with AuditLogger(SessionFactory) as audit:
         # Log a plain string action
         audit.log(
-            call_id="call_9921a", 
-            action="USER_LOGIN", 
+            call_id="call_9921a",
+            action="USER_LOGIN",
             caller_id="caller_502",
             details="User ID 502 authenticated via web."
         )
-        
+
         # Log complex structured data (auto-serializes to JSON string)
         payload = {"browser": "Chrome", "ip_address": "192.168.1.1", "status": "success"}
         audit.log(
-            call_id="call_9921a", 
-            action="API_REQUEST_METADATA", 
+            call_id="call_9921a",
+            action="API_REQUEST_METADATA",
             caller_id="caller_502",
             details=payload
         )
-    
+
     # --- Scenario 2: Error Handling and Safety Rollback ---
     print("\n--- Running Scenario 2 (Automatic Rollback on Error) ---")
     try:
         with AuditLogger(SessionFactory) as audit:
             audit.log(
-                call_id="call_8832b", 
-                action="SENSITIVE_PROCESS_START", 
+                call_id="call_8832b",
+                action="SENSITIVE_PROCESS_START",
                 caller_id="caller_8832b",
                 details={"step": 1}
             )
-            
+
             # Simulate a severe runtime failure midway through your process
             print("Executing application logic... something goes horribly wrong!")
             raise ValueError("Payment gateway connection timed out.")
-            
+
             # This line will never execute, and the 'SENSITIVE_PROCESS_START' log will be wiped
             audit.log(call_id="call_8832b", action="SENSITIVE_PROCESS_END")
-            
+
     except ValueError as e:
         print(f"Caught expected application exception: {e}")
 

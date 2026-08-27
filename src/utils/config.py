@@ -6,14 +6,12 @@ Supported env vars:
   WHISPER_MODEL_SIZE, CONFIDENCE_THRESHOLD, LOW_CONFIDENCE_HALT_RATIO,
   DB_PATH, DB_ENCRYPTION_KEY, MAX_RETRIES_PER_NODE, LLM_TIMEOUT_SECONDS
 """
-from dataclasses import dataclass
-import os
-from typing import Optional
 import logging
+import os
 import sys
+from dataclasses import dataclass
 
 from dotenv import load_dotenv
-
 
 # Load environment from .env (if present) into os.environ
 load_dotenv()
@@ -32,12 +30,12 @@ def get_logger(name: str) -> logging.Logger:
     return logger
 
 
-def _get_env(name: str, default: Optional[str] = None) -> Optional[str]:
+def _get_env(name: str, default: str | None = None) -> str | None:
     val = os.getenv(name, default)
     return val
 
 
-def _get_int(name: str, default: Optional[int] = None) -> Optional[int]:
+def _get_int(name: str, default: int | None = None) -> int | None:
     val = os.getenv(name)
     if val is None or val == "":
         return default
@@ -47,7 +45,7 @@ def _get_int(name: str, default: Optional[int] = None) -> Optional[int]:
         raise ValueError(f"Environment variable {name} must be an integer, got: {val}")
 
 
-def _get_float(name: str, default: Optional[float] = None) -> Optional[float]:
+def _get_float(name: str, default: float | None = None) -> float | None:
     val = os.getenv(name)
     if val is None or val == "":
         return default
@@ -60,16 +58,16 @@ def _get_float(name: str, default: Optional[float] = None) -> Optional[float]:
 @dataclass(frozen=True)
 class Config:
     llm_provider: str
-    openai_api_key: Optional[str]
-    google_api_key: Optional[str]
-    groq_api_key: Optional[str]
-    whisper_model_size: Optional[str]
-    confidence_threshold: Optional[float]
-    low_confidence_halt_ratio: Optional[float]
-    db_path: Optional[str]
-    db_encryption_key: Optional[str]
-    max_retries_per_node: Optional[int]
-    llm_timeout_seconds: Optional[float]
+    openai_api_key: str | None
+    google_api_key: str | None
+    groq_api_key: str | None
+    whisper_model_size: str | None
+    confidence_threshold: float | None
+    low_confidence_halt_ratio: float | None
+    db_path: str | None
+    db_encryption_key: str | None
+    max_retries_per_node: int | None
+    llm_timeout_seconds: float | None
 
 
 def load_config() -> Config:

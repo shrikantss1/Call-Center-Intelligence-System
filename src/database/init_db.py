@@ -1,5 +1,6 @@
 import os
 import sqlite3
+
 from src.utils.config import get_logger
 
 logger = get_logger("init_db")

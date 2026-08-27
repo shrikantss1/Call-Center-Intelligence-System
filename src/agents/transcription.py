@@ -1,22 +1,19 @@
-from email.mime import text
-import os
-import sys
-import re
 import hashlib
-from pathlib import Path
+import os
+import re
 from io import BytesIO
 
-from faster_whisper import WhisperModel
 import torch
+from faster_whisper import WhisperModel
 from sqlalchemy.orm import sessionmaker
 
-from src.database.models import Base, TranscriptionCache
 from src.database.connection import get_engine, session_scope
+from src.database.models import Base, TranscriptionCache
 from src.graph.state import PipeLineState, TranscriptionResult, TranscriptionSegment
-from src.utils.config import get_logger
+from src.security.audit import AuditLogger
 from src.security.injection_detector import INJECTION_PATTERNS
 from src.security.pii_redactor import redact_pii
-from src.security.audit import AuditLogger
+from src.utils.config import get_logger
 
 logger = get_logger("transcription")
 
@@ -210,13 +207,7 @@ class SpeakerDiarizer:
                 elif _CUSTOMER_PATTERNS.search(text) and current != 1:
                     current = 1
                 # Gap-based: speaker likely changed
-                elif gap > 1.2:
-                    current = 1 - current
-                # Question followed by answer = speaker change
-                elif prev_text.endswith("?"):
-                    current = 1 - current
-                # Short affirmation after long segment = different speaker
-                elif len(text.split()) <= 3 and len(prev_text.split()) > 10:
+                elif gap > 1.2 or prev_text.endswith("?") or len(text.split()) <= 3 and len(prev_text.split()) > 10:
                     current = 1 - current
 
             assignments.append(labels[current])
@@ -300,7 +291,7 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
                 condition_on_previous_text=False,
             )
         except Exception as e:
-            error_msg = f"Whisper transcription failed for {filename}: {str(e)}"
+            error_msg = f"Whisper transcription failed for {filename}: {e!s}"
             logger.error(error_msg)
             with AuditLogger(_SessionFactory) as audit:
                 audit.log(
@@ -391,7 +382,7 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
         return state
 
     except Exception as e:
-        error_msg = f"Transcription failed for {filename}: {str(e)}"
+        error_msg = f"Transcription failed for {filename}: {e!s}"
         logger.error(error_msg)
         with AuditLogger(_SessionFactory) as audit:
             audit.log(

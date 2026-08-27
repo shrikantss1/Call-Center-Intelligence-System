@@ -1,56 +1,56 @@
 
-from datetime import datetime
 from dataclasses import dataclass
-from typing import List, Optional, TypedDict
+from datetime import datetime
+from typing import TypedDict
 
 from pydantic import BaseModel, Field
 
 
 class AudioInput(BaseModel):
     audio_bytes: bytes
-    filename: Optional[str] = None
-    caller_id: Optional[str] = None
-    call_id: Optional[str] = None
-    department: Optional[str] = None
-    timestamp: Optional[datetime] = None
+    filename: str | None = None
+    caller_id: str | None = None
+    call_id: str | None = None
+    department: str | None = None
+    timestamp: datetime | None = None
 
 
 class AudioProperties(BaseModel):
     duration: float
     sample_rate: int
     channels: int
-    bit_depth: Optional[int]
+    bit_depth: int | None
 
 
 class IntakeResult(BaseModel):
     is_valid: bool
-    reason: Optional[str]
-    properties: Optional[AudioProperties]
+    reason: str | None
+    properties: AudioProperties | None
 
 
 @dataclass
 class PIIScanResult:
     pii_detected: bool
-    affected_fields: List[str]
+    affected_fields: list[str]
 
 class TranscriptionSegment(BaseModel):
     start: float
     end: float
     text: str
-    speaker: Optional[str] = None
+    speaker: str | None = None
     confidence: float = Field(..., ge=0.0, le=1.0)
 
 class TranscriptionResult(BaseModel):
-    segments: List[TranscriptionSegment]
+    segments: list[TranscriptionSegment]
     injection_detected: bool = False
-    injection_reason: Optional[str] = None
-    call_id: Optional[str] = None
+    injection_reason: str | None = None
+    call_id: str | None = None
 
 class SummaryResult(BaseModel):
     summary: str = Field(..., description="The summarized text of the transcription.")
     is_valid: bool = True
-    reason: Optional[str] = None
-    call_id: Optional[str] = None
+    reason: str | None = None
+    call_id: str | None = None
 
 class QAScoringResult(BaseModel):
     professionalism: int = Field(..., ge=1, le=5, description="Agent professionalism score (1-5)")
@@ -61,33 +61,33 @@ class QAScoringResult(BaseModel):
     overall_score: float = Field(..., ge=1.0, le=5.0, description="Computed overall score (overridden after LLM response)")
     justification: str = Field(..., description="Coaching-style justification with timestamp citations (MM:SS format)")
     compliance_flag: bool = Field(default=False, description="True if genuine procedural violations detected")
-    compliance_details: Optional[str] = Field(default=None, description="Details on compliance issues if flagged")
+    compliance_details: str | None = Field(default=None, description="Details on compliance issues if flagged")
     is_valid: bool = True
-    reason: Optional[str] = None
-    call_id: Optional[str] = None
+    reason: str | None = None
+    call_id: str | None = None
 
 class CallReport(BaseModel):
     call_id: str
     timestamp: str
-    audio_filename: Optional[str] = None
-    transcription: Optional[TranscriptionResult] = None
-    transcript_text: Optional[str] = None
-    summary: Optional[str] = None
-    qa_scores: Optional[QAScoringResult] = None
-    pii_scan: Optional[PIIScanResult] = None
+    audio_filename: str | None = None
+    transcription: TranscriptionResult | None = None
+    transcript_text: str | None = None
+    summary: str | None = None
+    qa_scores: QAScoringResult | None = None
+    pii_scan: PIIScanResult | None = None
     status: str
-    error: Optional[str] = None
+    error: str | None = None
 
 class PipeLineState(TypedDict, total=False):
     audio_input: AudioInput
     intake_result: IntakeResult
-    transcription: Optional[TranscriptionResult] = None
-    summary: Optional[SummaryResult] = None
-    qa_score: Optional[QAScoringResult] = None
-    pii_scan: Optional[PIIScanResult] = None
-    call_report: Optional[CallReport] = None
-    error: Optional[str] = None
-    state: Optional[str] = None
+    transcription: TranscriptionResult | None = None
+    summary: SummaryResult | None = None
+    qa_score: QAScoringResult | None = None
+    pii_scan: PIIScanResult | None = None
+    call_report: CallReport | None = None
+    error: str | None = None
+    state: str | None = None
 
-    
+
 

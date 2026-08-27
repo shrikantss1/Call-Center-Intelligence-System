@@ -3,12 +3,11 @@
 # ==========================================
 
 
-from sqlalchemy import Column, DateTime, Integer, String, Text, JSON
-
-
 from datetime import datetime
 
+from sqlalchemy import JSON, Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import declarative_base
+
 Base = declarative_base()
 
 

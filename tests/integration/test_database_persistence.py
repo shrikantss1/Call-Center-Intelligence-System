@@ -1,12 +1,11 @@
-import pytest
 import json
-import tempfile
-from pathlib import Path
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.database.models import Base, CallRecord, AuditLogEntry
+from src.database.models import AuditLogEntry, Base, CallRecord
 
 
 @pytest.fixture
@@ -72,7 +71,7 @@ class TestCallRecordPersistence:
             summary_json=json.dumps({"summary": "Issue resolved"}),
             qa_scores_json=json.dumps(qa_scores_data),
             report_json=json.dumps(report_data),
-            processed_at=datetime.now(timezone.utc),
+            processed_at=datetime.now(UTC),
             trace_id="trace-12345",
         )
         session.add(call_record)
@@ -400,7 +399,7 @@ class TestCrossTableIntegration:
             call_id=call_id,
             status="completed",
             audio_filename="recording.mp3",
-            processed_at=datetime.now(timezone.utc),
+            processed_at=datetime.now(UTC),
         )
         session.add(call_record)
 

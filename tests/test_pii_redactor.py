@@ -1,5 +1,6 @@
 import pytest
-from src.security.pii_redactor import redact_pii, get_pii_matches, PII_PATTERNS
+
+from src.security.pii_redactor import PII_PATTERNS, get_pii_matches, redact_pii
 
 
 class TestRedactPII:

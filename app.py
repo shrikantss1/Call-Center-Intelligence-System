@@ -1,16 +1,18 @@
 """Thin entrypoint for Call Center Intelligence System."""
 
 import os
+
 import gradio as gr
-from src.utils.config import load_config, get_logger
+from sqlalchemy.orm import sessionmaker
+
+from src.agents.transcription import _get_whisper_model
+from src.app_globals import set_workflow_and_agent
 from src.database.connection import get_engine
 from src.database.init_db import init_db
-from src.agents.transcription import _get_whisper_model
 from src.graph.workflow import build_workflow
 from src.security.audit import AuditLogger
 from src.ui.main import build_app
-from src.app_globals import set_workflow_and_agent
-from sqlalchemy.orm import sessionmaker
+from src.utils.config import get_logger, load_config
 
 logger = get_logger("app")
 

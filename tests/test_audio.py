@@ -1,25 +1,25 @@
-import pytest
+import tempfile
 import wave
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-import tempfile
-import os
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from src.utils.audio import (
-    validate_audio,
-    validate_audio_duration,
-    detect_audio_format,
-    extract_audio_properties,
-    _extract_wav_properties,
-    _extract_mp3_properties,
-    _extract_flac_properties,
-    _extract_mp4_properties,
-    _extract_mutagen_properties,
+    MAX_DURATION_SECONDS,
+    MAX_FILE_SIZE,
+    AudioProperties,
     AudioValidationError,
     ValidationResult,
-    AudioProperties,
-    MAX_FILE_SIZE,
-    MAX_DURATION_SECONDS,
+    _extract_flac_properties,
+    _extract_mp3_properties,
+    _extract_mp4_properties,
+    _extract_mutagen_properties,
+    _extract_wav_properties,
+    detect_audio_format,
+    extract_audio_properties,
+    validate_audio,
+    validate_audio_duration,
 )
 
 

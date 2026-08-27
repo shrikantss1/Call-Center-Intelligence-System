@@ -1,8 +1,14 @@
-import pytest
 import json
-import io
-from src.agents.report import compile_report, generate_report_pdf, generate_report_json
-from src.graph.state import AudioInput, TranscriptionResult, TranscriptionSegment, PIIScanResult, CallReport, QAScoringResult
+
+from src.agents.report import compile_report, generate_report_json, generate_report_pdf
+from src.graph.state import (
+    AudioInput,
+    CallReport,
+    PIIScanResult,
+    QAScoringResult,
+    TranscriptionResult,
+    TranscriptionSegment,
+)
 
 
 def test_pii_scan_import_consistency():

@@ -1,7 +1,7 @@
-import unittest
-from unittest.mock import patch, MagicMock, mock_open
 import sys
+import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 # Mock langchain imports to avoid dependency issues
 sys.modules['langchain_openai'] = MagicMock()

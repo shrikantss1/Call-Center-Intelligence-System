@@ -1,20 +1,19 @@
-import pytest
-from unittest.mock import Mock, patch, MagicMock, ANY
-import json
-import sqlite3
-from io import BytesIO
+from unittest.mock import MagicMock, Mock, patch
 
 from src.agents.transcription import (
-    transcribe_audio,
-    _compute_audio_hash,
-    _check_cache,
-    _save_cache,
-    _clean_transcript_text,
-    _check_injection_patterns,
     SpeakerDiarizer,
-    _iter_chunks
+    _check_injection_patterns,
+    _clean_transcript_text,
+    _compute_audio_hash,
+    _iter_chunks,
+    transcribe_audio,
 )
-from src.graph.state import PipeLineState, AudioInput, TranscriptionResult, TranscriptionSegment
+from src.graph.state import (
+    AudioInput,
+    PipeLineState,
+    TranscriptionResult,
+    TranscriptionSegment,
+)
 
 
 class TestComputeAudioHash:

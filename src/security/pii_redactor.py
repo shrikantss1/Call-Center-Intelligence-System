@@ -1,5 +1,4 @@
 import re
-from typing import Dict, List
 
 PII_PATTERNS = {
     'SSN': r'\b\d{3}-\d{2}-\d{4}\b',
@@ -47,7 +46,7 @@ def redact_pii(text: str, replacement: str = '[REDACTED]') -> str:
     return result
 
 
-def get_pii_matches(text: str) -> List[Dict]:
+def get_pii_matches(text: str) -> list[dict]:
     """
     Find all PII matches in text and return their details.
     Returns list of dicts with 'type', 'value', 'start', 'end'.

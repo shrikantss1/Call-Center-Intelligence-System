@@ -1,5 +1,5 @@
-from src.graph.workflow import injection_check_node
 from src.graph.state import TranscriptionResult, TranscriptionSegment
+from src.graph.workflow import injection_check_node
 
 
 def test_injection_check_node_flags_review_when_injection_detected():

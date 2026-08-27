@@ -1,7 +1,8 @@
 import os
 from contextlib import contextmanager
-from sqlalchemy import create_engine, event, Engine
-from sqlalchemy.orm import sessionmaker, Session
+
+from sqlalchemy import Engine, create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
 
 _session_factories = {}
 

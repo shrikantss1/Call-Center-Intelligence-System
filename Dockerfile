@@ -22,5 +22,6 @@ RUN mkdir -p /app/data
 # Initialize database schema
 RUN python -m src.database.init_db
 
+EXPOSE 7860
 # Default command
-# CMD ["python", "app.py"]
+CMD ["python", "app.py"]

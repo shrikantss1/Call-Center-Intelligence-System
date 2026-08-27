@@ -1,11 +1,12 @@
 import wave
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+
 from src.utils.config import get_logger
+
 try:
-    from mutagen.mp3 import MP3
     from mutagen.flac import FLAC
+    from mutagen.mp3 import MP3
     from mutagen.mp4 import MP4
 except ImportError:
     MP3 = FLAC = MP4 = None
@@ -31,7 +32,7 @@ class AudioValidationError(Exception):
 @dataclass
 class ValidationResult:
     is_valid: bool
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -107,7 +108,7 @@ def validate_audio_duration(duration_seconds: float) -> ValidationResult:
     return ValidationResult(is_valid=True)
 
 
-def detect_audio_format(file_contents: bytes) -> Optional[str]:
+def detect_audio_format(file_contents: bytes) -> str | None:
     """Detect audio format from file contents' magic bytes (first 12 bytes)."""
     if not file_contents or len(file_contents) == 0:
         return None
@@ -142,9 +143,9 @@ def extract_audio_properties(file_contents: bytes, filepath: str) -> AudioProper
         elif detected_format == 'm4a':
             return _extract_mp4_properties(file_path)
         else:
-            raise AudioValidationError(f"Unsupported or unrecognized audio format")
+            raise AudioValidationError("Unsupported or unrecognized audio format")
     except Exception as e:
-        raise AudioValidationError(f"Failed to extract audio properties: {str(e)}")
+        raise AudioValidationError(f"Failed to extract audio properties: {e!s}")
 
 
 def _extract_wav_properties(file_path: Path) -> AudioProperties:
@@ -163,7 +164,7 @@ def _extract_wav_properties(file_path: Path) -> AudioProperties:
                 duration_seconds=duration_seconds
             )
     except wave.Error as e:
-        raise AudioValidationError(f"Corrupt or unreadable WAV file: {str(e)}")
+        raise AudioValidationError(f"Corrupt or unreadable WAV file: {e!s}")
 
 
 def _extract_mutagen_properties(audio_obj, get_frame_count) -> AudioProperties:
@@ -193,7 +194,7 @@ def _extract_mp3_properties(file_path: Path) -> AudioProperties:
             lambda _a, sr, d: int(d * sr) if sr > 0 else 0
         )
     except Exception as e:
-        raise AudioValidationError(f"Corrupt or unreadable MP3 file: {str(e)}")
+        raise AudioValidationError(f"Corrupt or unreadable MP3 file: {e!s}")
 
 
 def _extract_flac_properties(file_path: Path) -> AudioProperties:
@@ -208,7 +209,7 @@ def _extract_flac_properties(file_path: Path) -> AudioProperties:
             lambda a, _sr, _d: a.info.total_samples
         )
     except Exception as e:
-        raise AudioValidationError(f"Corrupt or unreadable FLAC file: {str(e)}")
+        raise AudioValidationError(f"Corrupt or unreadable FLAC file: {e!s}")
 
 
 def _extract_mp4_properties(file_path: Path) -> AudioProperties:
@@ -223,4 +224,4 @@ def _extract_mp4_properties(file_path: Path) -> AudioProperties:
             lambda _a, sr, d: int(d * sr) if sr > 0 else 0
         )
     except Exception as e:
-        raise AudioValidationError(f"Corrupt or unreadable MP4/M4A file: {str(e)}")
+        raise AudioValidationError(f"Corrupt or unreadable MP4/M4A file: {e!s}")

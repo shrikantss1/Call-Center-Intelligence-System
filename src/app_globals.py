@@ -3,11 +3,11 @@
 These are populated during app initialization and used by pipeline.py.
 """
 
-from typing import Optional
+
 from langgraph.graph import StateGraph
 
 # Module-level holders for workflow and agent
-_workflow: Optional[StateGraph] = None
+_workflow: StateGraph | None = None
 _agent = None
 
 

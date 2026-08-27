@@ -1,17 +1,18 @@
-import json
-from datetime import datetime, timezone
-from dataclasses import asdict
-
-from src.graph.state import PipeLineState, CallReport, QAScoringResult
-from src.database.models import CallRecord
-from src.database.connection import get_session
-from src.utils.config import get_logger
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
-from reportlab.lib.units import inch
 import io
+import json
+from dataclasses import asdict
+from datetime import UTC, datetime
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+from src.database.connection import get_session
+from src.database.models import CallRecord
+from src.graph.state import CallReport, PipeLineState, QAScoringResult
+from src.utils.config import get_logger
 
 logger = get_logger("report")
 
@@ -72,7 +73,7 @@ def compile_report(state: PipeLineState) -> PipeLineState:
     try:
         report = CallReport(
             call_id=call_id,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             audio_filename="abc", #audio_input.filename if audio_input else None,
             transcription=transcription,
             transcript_text=transcript_text,
@@ -83,7 +84,7 @@ def compile_report(state: PipeLineState) -> PipeLineState:
             error=error,
         )
         logger.info("Call report built successfully for call_id=%s with status=%s", call_id, report.status)
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to create CallReport for call_id=%s", call_id)
         raise
 
@@ -120,7 +121,7 @@ def persist_report(state: PipeLineState) -> PipeLineState:
                 summary_json=json.dumps({"summary": report.summary}) if report.summary else None,
                 qa_scores_json=report.qa_scores.model_dump_json() if report.qa_scores else None,
                 report_json=report.model_dump_json(),
-                processed_at=datetime.now(timezone.utc),
+                processed_at=datetime.now(UTC),
             )
             session.add(call_record)
             session.commit()
@@ -150,7 +151,7 @@ def generate_report_pdf(state: PipeLineState) -> bytes:
     Returns:
         PDF document as bytes
     """
- 
+
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
     story = []

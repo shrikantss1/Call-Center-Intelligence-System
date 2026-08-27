@@ -1,7 +1,7 @@
-import unittest
-from unittest.mock import patch, MagicMock, call
 import sys
+import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 # Mock langchain imports to avoid dependency issues
 sys.modules['langchain_openai'] = MagicMock()
@@ -12,10 +12,10 @@ sys.modules['langchain_groq'] = MagicMock()
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.agents.qa_scoring import (
+    DIMENSION_WEIGHTS,
+    _format_timestamp,
     get_qa_scoring_prompt,
     run_qa_scoring,
-    _format_timestamp,
-    DIMENSION_WEIGHTS,
 )
 from src.graph.state import QAScoringResult
 

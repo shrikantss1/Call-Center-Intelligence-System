@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.graph.state import TranscriptionSegment, TranscriptionResult
+from src.graph.state import TranscriptionSegment
 
 
 def test_transcription_segment_confidence_must_be_between_zero_and_one():

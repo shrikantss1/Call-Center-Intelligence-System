@@ -2,18 +2,16 @@
 
 import json
 import os
-from datetime import datetime
-from typing import Dict, List, Tuple
 
 import gradio as gr
 import pandas as pd
 from sqlalchemy import desc, func
 
 from src.database.connection import get_engine, session_scope
-from src.database.models import CallRecord, AuditLogEntry
+from src.database.models import AuditLogEntry, CallRecord
 
 
-def _get_pipeline_metrics() -> Dict:
+def _get_pipeline_metrics() -> dict:
     """Query database for pipeline metrics."""
     with session_scope(get_engine()) as session:
         total_calls = session.query(func.count(CallRecord.id)).scalar() or 0
@@ -117,7 +115,7 @@ def _get_audit_events() -> pd.DataFrame:
         return df if not df.empty else pd.DataFrame(columns=["Timestamp", "Call ID", "Action", "Details"])
 
 
-def _refresh_metrics() -> Tuple[str, pd.DataFrame]:
+def _refresh_metrics() -> tuple[str, pd.DataFrame]:
     """Refresh both metrics and audit events."""
     metrics = _get_pipeline_metrics()
     metrics_md = f"""
@@ -138,7 +136,7 @@ def _refresh_metrics() -> Tuple[str, pd.DataFrame]:
     return metrics_md, audit_df
 
 
-def create_observability_tab() -> Dict:
+def create_observability_tab() -> dict:
     """
     Create the Observability tab with metrics, LangSmith status, and audit events.
 

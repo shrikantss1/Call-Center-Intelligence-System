@@ -1,8 +1,7 @@
-import pytest
 from src.graph.edges import (
     route_after_intake,
-    route_after_transcription,
     route_after_qa,
+    route_after_transcription,
 )
 
 

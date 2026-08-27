@@ -1,12 +1,11 @@
 """Pipeline service for call analysis and reporting."""
 
 import json
-import wave
 import os
 import tempfile
-from pathlib import Path
+import wave
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union
+
 import numpy as np
 
 try:
@@ -14,9 +13,9 @@ try:
 except ImportError:
     AudioSegment = None
 
-from src.graph.state import PipeLineState, AudioInput, QAScoringResult
+from src.agents.report import generate_report_json, generate_report_pdf
 from src.app_globals import get_agent
-from src.agents.report import generate_report_pdf, generate_report_json
+from src.graph.state import AudioInput, PipeLineState
 from src.utils.config import get_logger
 
 logger = get_logger("pipeline")
@@ -32,8 +31,8 @@ class PipelineResult:
     transcript: str
     summary: str
     qa_scores: str
-    pdf_path: Optional[str]
-    json_path: Optional[str]
+    pdf_path: str | None
+    json_path: str | None
     error: str
 
 
@@ -59,7 +58,7 @@ def _add_temp_file(filepath: str):
     _cleanup_old_temp_files()
 
 
-def _load_audio_from_file(filepath: str) -> Tuple[int, np.ndarray]:
+def _load_audio_from_file(filepath: str) -> tuple[int, np.ndarray]:
     """Load audio from a file and convert to numpy array.
 
     Args:
@@ -109,11 +108,11 @@ def _load_audio_from_file(filepath: str) -> Tuple[int, np.ndarray]:
 
             samples = samples.astype(np.float32) / 32768.0
             return sample_rate, samples
-    except Exception as e:
+    except Exception:
         raise ValueError("Invalid or corrupted audio file. Please ensure the file is a valid audio format (MP3, WAV, etc.)")
 
 
-def _write_audio_to_wav(audio_data: Union[Tuple[int, np.ndarray], str]) -> Tuple[str, bytes]:
+def _write_audio_to_wav(audio_data: tuple[int, np.ndarray] | str) -> tuple[str, bytes]:
     """Convert audio to WAV format. Handles both numpy arrays and file paths.
 
     Args:
@@ -267,9 +266,9 @@ def format_qa(qa_data: dict) -> str:
 
 
 def process_call(
-    audio_data: Union[str, Tuple[int, np.ndarray]],
-    caller_id: Optional[str] = None,
-    department: Optional[str] = None,
+    audio_data: str | tuple[int, np.ndarray],
+    caller_id: str | None = None,
+    department: str | None = None,
 ) -> PipelineResult:
     """Process a call recording through the analysis pipeline.
 

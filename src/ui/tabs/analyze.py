@@ -1,6 +1,7 @@
 """Analyze Call tab for the Call Center Intelligence System UI."""
 
 import gradio as gr
+
 from src.services.pipeline import process_call
 
 
