@@ -77,7 +77,7 @@ def injection_check_node(state: PipeLineState) -> PipeLineState:
     if injection_detected:
         logger.warning(f"Injection detected: {injection_reason}")
         state["state"] = "flagged_for_review"
-        state["error"] = injection_reason or "prompt injection detected"
+        # state["error"] = injection_reason or "prompt injection detected"
         return state
 
     state["state"] = "ready_for_redaction"
@@ -145,10 +145,11 @@ def report_node(state: PipeLineState) -> PipeLineState:
 
 @traceable
 def error_node(state: PipeLineState) -> PipeLineState:
-    """Store the pipeline error and mark the run as failed."""
-    if not state.get("error"):
-        state["error"] = "Pipeline error"
-    state["state"] = "error"
+    """Persist the call record even on pipeline error without changing status."""
+    from src.agents.report import persist_report
+
+    state = persist_report(state)
+
     return state
 
 

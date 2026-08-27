@@ -27,14 +27,14 @@ def _get_pipeline_metrics() -> Dict:
 
         failed = (
             session.query(func.count(CallRecord.id))
-            .filter(CallRecord.status.in_(["INTAKE_FAILED", "TRANSCRIPTION_FAILED", "SUMMARIZATION_FAILED", "QA_SCORING_FAILED"]))
+            .filter(CallRecord.status.in_(["intake_failed", "transcription_failed", "summarization_failed", "qa_scoring_failed", "failed"]))
             .scalar()
             or 0
         )
 
         flagged = (
             session.query(func.count(CallRecord.id))
-            .filter(CallRecord.status == "FLAGGED_FOR_REVIEW")
+            .filter(CallRecord.status == "flagged_for_review")
             .scalar()
             or 0
         )

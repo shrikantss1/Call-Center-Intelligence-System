@@ -1,8 +1,8 @@
 INJECTION_PATTERNS = [
-    (r"(?i)ignore\s+(?:the\s+)?previous", "ignore_previous"),
-    (r"(?i)ignore\s+(?:the\s+)?prior", "ignore_prior"),
-    (r"(?i)disregard\s+(?:the\s+)?prior", "disregard_prior"),
-    (r"(?i)forget\s+(?:the\s+)?previous", "forget_previous"),
+    (r"(?i)ignore\s+(?:(?:the|your|all)\s+)*previous", "ignore_previous"),
+    (r"(?i)ignore\s+(?:(?:the|your|all)\s+)*prior", "ignore_prior"),
+    (r"(?i)disregard\s+(?:(?:the|your|all)\s+)*prior", "disregard_prior"),
+    (r"(?i)forget\s+(?:(?:the|your|all)\s+)*previous", "forget_previous"),
     (r"(?i)(?:reveal|show|leak|display|print)\s+(?:the\s+)?prompt", "prompt_leak"),
     (r"(?i)(?:what|can you tell me)\s+(?:is\s+)?(?:the\s+)?prompt\??", "prompt_leak_question"),
     (r"(?i)system\s+prompt\s*:", "system_prompt_inject"),

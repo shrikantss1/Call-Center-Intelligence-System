@@ -7,6 +7,8 @@ def route_after_intake(state):
 
 def route_after_transcription(state):
     """Route after transcription to injection check."""
+    if state.get("state") == "transcription_failed":
+        return "error_step"
     return "injection_check_step"
 
 

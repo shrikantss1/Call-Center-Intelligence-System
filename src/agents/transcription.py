@@ -1,3 +1,4 @@
+from email.mime import text
 import os
 import sys
 import re
@@ -229,6 +230,7 @@ def _get_diarizer() -> SpeakerDiarizer:
 
 def _check_injection_patterns(text: str) -> tuple[bool, str | None]:
     """Check if text matches any injection patterns. Returns (is_safe, pattern_name)."""
+    logger.info(f"Checking text for injection patterns: {text[:50]}...")  # Log first 50 chars
     for pattern, pattern_name in INJECTION_PATTERNS:
         if re.search(pattern, text):
             return False, pattern_name

@@ -66,8 +66,8 @@ def compile_report(state: PipeLineState) -> PipeLineState:
     status = state.get("state", "completed")
     error = state.get("error")
     logger.info("Compiling report for call_id=%s with pipeline_status=%s", call_id, status)
-    if error:
-        status = "failed"
+    # if error:
+    #     status = "failed"
 
     try:
         report = CallReport(
