@@ -2,7 +2,7 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-
+from src.utils.config import get_logger
 try:
     from mutagen.mp3 import MP3
     from mutagen.flac import FLAC
@@ -23,10 +23,10 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB in bytes
 MAX_DURATION_SECONDS = 3600  # 1 hour in seconds
 SUPPORTED_FORMATS = {'mp3', 'wav', 'flac', 'ogg', 'm4a'}
 
+logger = get_logger("audio_utils")
 
 class AudioValidationError(Exception):
     pass
-
 
 @dataclass
 class ValidationResult:
@@ -113,6 +113,7 @@ def detect_audio_format(file_contents: bytes) -> Optional[str]:
         return None
 
     header = file_contents[:12]
+    logger.info(f"Detecting audio format from header bytes: {header.hex()}")
     for format_name, signatures in AUDIO_SIGNATURES.items():
         if any(header.startswith(sig) for sig in signatures):
             return format_name

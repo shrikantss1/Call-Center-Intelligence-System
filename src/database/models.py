@@ -49,7 +49,7 @@ class TranscriptionCache(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     audio_hash = Column(String(128), nullable=False, unique=True, index=True)
-    transcription_json = Column(JSON, nullable=False)
+    transcription = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):

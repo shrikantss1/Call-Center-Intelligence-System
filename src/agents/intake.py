@@ -91,7 +91,12 @@ def run_intake(state: PipeLineState) -> PipeLineState:
         call_id = audio_input.call_id
         caller_id = audio_input.caller_id or "unknown"
         filename = audio_input.filename
-
+        if not filename:
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                        temp_file.write(audio_input.audio_bytes)
+                        filename = temp_file.name
+        
+        
         with AuditLogger(_SessionFactory) as audit:
             audit.log(
                 call_id=call_id,
@@ -183,13 +188,7 @@ def run_intake(state: PipeLineState) -> PipeLineState:
                 )
             state["pii_scan"] = pii_result
 
-        with tempfile.NamedTemporaryFile(suffix=state["audio_input"].filename.split('.')[-1], delete=False) as temp_file:
-            temp_file.write(audio_input.audio_bytes)
-            state["intake_result"] = {
-                "is_valid": True,
-                "reason": None,
-                "properties": properties
-            }
+        
 
         with AuditLogger(_SessionFactory) as audit:
             audit.log(
@@ -199,6 +198,11 @@ def run_intake(state: PipeLineState) -> PipeLineState:
                 details={"filename": filename, "duration_seconds": properties.duration_seconds}
             )
 
+        state["intake_result"] = {
+                "is_valid": True,
+                "reason": None,
+                "properties": properties
+            }
         return state
 
     except Exception as e:

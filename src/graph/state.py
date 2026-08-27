@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 class AudioInput(BaseModel):
     audio_bytes: bytes
-    filename: str
+    filename: Optional[str] = None
     caller_id: Optional[str] = None
     call_id: Optional[str] = None
     department: Optional[str] = None

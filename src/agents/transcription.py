@@ -85,7 +85,7 @@ def _save_cache(audio_hash: str, transcription: TranscriptionResult) -> None:
             transcription_json = transcription.model_dump()
             cache_entry = TranscriptionCache(
                 audio_hash=audio_hash,
-                transcription_json=transcription_json
+                transcription=transcription_json
             )
             session.add(cache_entry)
         logger.info(f"Cached transcription for audio hash: {audio_hash}")
