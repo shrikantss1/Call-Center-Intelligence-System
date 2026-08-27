@@ -15,8 +15,9 @@ from src.utils.audio import validate_audio
 import uuid
 from src.utils.audio import extract_audio_properties, validate_audio_duration
 from src.security.audit import AuditLogger
+from src.utils.config import get_logger
 
-
+logger = get_logger("intake")
 
 # Setup SQLAlchemy session factory for audit logging
 _CACHE_DB_PATH = os.getenv("TRANSCRIPTION_CACHE_DB", "data/agent.db")
@@ -82,7 +83,9 @@ def run_intake(state: PipeLineState) -> PipeLineState:
         # generate uuid for the audio input
         if "audio_input" in state and state["audio_input"] is not None:
             state["audio_input"].call_id = str(uuid.uuid4())
+            logger.info(f"Generated intake call_id={state['audio_input'].call_id} for file={state['audio_input'].filename}")
         else:
+            logger.warning("Intake called without audio_input in state.")
             return state
 
         audio_input = state["audio_input"]
@@ -90,11 +93,13 @@ def run_intake(state: PipeLineState) -> PipeLineState:
         caller_id = audio_input.caller_id or "unknown"
         filename = audio_input.filename
         if not filename:
+            logger.info("Audio filename missing; creating temporary file for intake validation.")
             with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                         temp_file.write(audio_input.audio_bytes)
                         filename = temp_file.name
-        
-        
+
+        logger.info(f"Starting intake validation for call_id={call_id}, filename={filename}, caller_id={caller_id}")
+
         with AuditLogger(_SessionFactory) as audit:
             audit.log(
                 call_id=call_id,
@@ -105,6 +110,7 @@ def run_intake(state: PipeLineState) -> PipeLineState:
 
         validation_result = validate_audio(audio_input.audio_bytes, filename)
         if not validation_result.is_valid:
+            logger.error(f"Audio validation failed for call_id={call_id}: {validation_result.error}")
             with AuditLogger(_SessionFactory) as audit:
                 audit.log(
                     call_id=call_id,
@@ -126,10 +132,12 @@ def run_intake(state: PipeLineState) -> PipeLineState:
             )
 
         # Extract audio properties
+        logger.info(f"Extracting audio properties for call_id={call_id}")
         properties = extract_audio_properties(audio_input.audio_bytes, filename)
 
         validation_result = validate_audio_duration(properties.duration_seconds)
         if not validation_result.is_valid:
+            logger.error(f"Duration validation failed for call_id={call_id}: {validation_result.error}")
             with AuditLogger(_SessionFactory) as audit:
                 audit.log(
                     call_id=call_id,
@@ -166,7 +174,7 @@ def run_intake(state: PipeLineState) -> PipeLineState:
 
         pii_result = scan_metadata_for_pii(metadata)
         if pii_result.pii_detected:
-            print(f"PII detected in metadata fields: {pii_result.affected_fields}")
+            logger.warning(f"PII detected in metadata fields for call_id={call_id}: {pii_result.affected_fields}")
             with AuditLogger(_SessionFactory) as audit:
                 audit.log(
                     call_id=call_id,
@@ -180,7 +188,7 @@ def run_intake(state: PipeLineState) -> PipeLineState:
             state["error"] = f"PII detected in metadata fields: {pii_result.affected_fields}"
             return state
         else:
-            print("No PII detected in metadata fields.")
+            logger.info(f"No PII detected in metadata fields for call_id={call_id}")
             with AuditLogger(_SessionFactory) as audit:
                 audit.log(
                     call_id=call_id,
@@ -206,12 +214,14 @@ def run_intake(state: PipeLineState) -> PipeLineState:
                 "properties": properties
             }
         state["state"] = "intake_complete"
+        logger.info(f"Intake completed successfully for call_id={call_id}, duration_seconds={properties.duration_seconds}")
         return state
 
     except Exception as e:
         call_id = state["audio_input"].call_id if "audio_input" in state and state["audio_input"] else "unknown"
         caller_id = state["audio_input"].caller_id if "audio_input" in state and state["audio_input"] else "unknown"
         filename = state["audio_input"].filename if "audio_input" in state and state["audio_input"] else "unknown"
+        logger.exception(f"Intake failed for call_id={call_id}, filename={filename}: {str(e)}")
 
         with AuditLogger(_SessionFactory) as audit:
             audit.log(
@@ -220,4 +230,6 @@ def run_intake(state: PipeLineState) -> PipeLineState:
                 caller_id=caller_id,
                 details={"filename": filename, "error": str(e)}
             )
+        state["state"] = "intake_failed"
+        state["error"] = str(e)
         raise

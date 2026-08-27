@@ -1,7 +1,7 @@
 """Analyze Call tab for the Call Center Intelligence System UI."""
 
 import gradio as gr
-from src.ui.utils.process import process_call
+from src.services.pipeline import process_call
 
 
 def _show_status() -> gr.update:
@@ -19,14 +19,29 @@ def _hide_status() -> gr.update:
 
 def _process_call_with_error_display(audio_data, caller_id, department):
     """Wrapper to process call and format error display."""
-    transcript, summary_md, qa_md, pdf_path, json_path, error_msg = process_call(
-        audio_data, caller_id, department
+    result = process_call(audio_data, caller_id, department)
+
+    # Update error display
+    error_display = gr.update(value=result.error, visible=bool(result.error))
+
+    # Update file downloads with visibility based on availability
+    pdf_update = gr.update(
+        value=result.pdf_path,
+        visible=bool(result.pdf_path)
+    )
+    json_update = gr.update(
+        value=result.json_path,
+        visible=bool(result.json_path)
     )
 
-    # Return error_display with both value and visibility updated
-    error_display = gr.update(value=error_msg, visible=bool(error_msg))
-
-    return transcript, summary_md, qa_md, pdf_path, json_path, error_display
+    return (
+        result.transcript,
+        result.summary,
+        result.qa_scores,
+        pdf_update,
+        json_update,
+        error_display
+    )
 
 
 def create_analyze_tab() -> dict:
@@ -109,14 +124,16 @@ def create_analyze_tab() -> dict:
     gr.Markdown("### Download Results")
     with gr.Row():
         pdf_download = gr.File(
-            label="Download PDF Report",
+            label="📄 Download PDF Report",
             interactive=False,
             visible=False,
+            type="filepath",
         )
         json_download = gr.File(
-            label="Download JSON Report",
+            label="📋 Download JSON Report",
             interactive=False,
             visible=False,
+            type="filepath",
         )
 
     # Wire the Analyze button with .click().then().then()

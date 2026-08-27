@@ -20,17 +20,19 @@ from src.security.pii_redactor import redact_pii
 def intake_step(state: PipeLineState) -> PipeLineState:
     """Run the intake validation and preserve the result in state."""
     from src.agents.intake import run_intake
+    from src.utils.config import get_logger
+
+    logger = get_logger("workflow")
+    logger.info("Intake step started")
 
     state["state"] = "intake_started"
     state = run_intake(state)
 
-    intake_result = state.get("intake_result")
-    if intake_result and not intake_result.get("is_valid", True):
-        state["state"] = "intake_failed"
-        state["error"] = intake_result.get("reason") or "Intake validation failed"
-        return state
+    intake_state = state.get("state", "unknown")
+    logger.info(f"Intake step completed with state: {intake_state}")
+    if state.get("error"):
+        logger.error(f"Intake error: {state.get('error')}")
 
-    state["state"] = "intake_complete"
     return state
 
 
@@ -38,18 +40,33 @@ def intake_step(state: PipeLineState) -> PipeLineState:
 def transcription_node(state: PipeLineState) -> PipeLineState:
     """Transcribe the call audio and store the result on state."""
     from src.agents.transcription import transcribe_audio
+    from src.utils.config import get_logger
+
+    logger = get_logger("workflow")
+    logger.info("Transcription node started")
 
     state["state"] = "transcribing"
     state = transcribe_audio(state)
-    state["state"] = "transcribed"
+
+    transcription = state.get("transcription")
+    if transcription:
+        segment_count = len(getattr(transcription, "segments", []))
+        logger.info(f"Transcription node completed with {segment_count} segments")
+    else:
+        logger.warning("Transcription node completed but transcription is None")
+
     return state
 
 
 @traceable
 def injection_check_node(state: PipeLineState) -> PipeLineState:
     """Stop the pipeline if the transcription contains injection content."""
+    from src.utils.config import get_logger
+
+    logger = get_logger("workflow")
     transcription = state.get("transcription")
     if transcription is None:
+        logger.error("No transcription available for injection check")
         state["state"] = "error"
         state["error"] = "No transcription available for injection check"
         return state
@@ -58,6 +75,7 @@ def injection_check_node(state: PipeLineState) -> PipeLineState:
     injection_reason = getattr(transcription, "injection_reason", None)
 
     if injection_detected:
+        logger.warning(f"Injection detected: {injection_reason}")
         state["state"] = "flagged_for_review"
         state["error"] = injection_reason or "prompt injection detected"
         return state

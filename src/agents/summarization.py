@@ -2,7 +2,7 @@
 
 
 from src.utils.config import get_logger
-from time import time
+from time import sleep
 
 from src.utils.llm_factory import llm
 from src.graph.state import SummaryResult
@@ -29,6 +29,7 @@ def run_summarization(state: PipeLineState) -> PipeLineState:
     # Check if transcription is available in the state
     if "transcription" not in state or state["transcription"] is None:
         error_msg = "Transcription not available for summarization."
+        logger.error("Summarization skipped: %s", error_msg)
         with AuditLogger(_SessionFactory) as audit:
             audit.log(
                 call_id=state.get("transcription").call_id if state.get("transcription") else "unknown",
@@ -36,7 +37,6 @@ def run_summarization(state: PipeLineState) -> PipeLineState:
                 caller_id="unknown",
                 details={"error": error_msg, "state": "summarization_failed"}
             )
-        logger.error(error_msg)
         state["summary"] = {
             "is_valid": False,
             "reason": error_msg,
@@ -48,6 +48,7 @@ def run_summarization(state: PipeLineState) -> PipeLineState:
 
     transcription_segments = state["transcription"].segments
     call_id = state["transcription"].call_id
+    logger.info("Starting summarization for call_id=%s with %s transcript segments", call_id or "unknown", len(transcription_segments))
     with AuditLogger(_SessionFactory) as audit:
         audit.log(
             call_id=call_id or "unknown",
@@ -62,6 +63,7 @@ def run_summarization(state: PipeLineState) -> PipeLineState:
     max_retries = 3
     for attempt in range(max_retries):
         try:
+            logger.info("Attempting summarization for call_id=%s (%s/%s)", call_id or "unknown", attempt + 1, max_retries)
             summary = llm.with_structured_output(SummaryResult).invoke(formatted_transcription)
             state["summary"] = {
                 "is_valid": True,
@@ -70,12 +72,20 @@ def run_summarization(state: PipeLineState) -> PipeLineState:
                 "call_id": state["transcription"].call_id,
             }
             state["state"] = "summarization_complete"
-            break  # Exit the retry loop if successful
+            logger.info("Summarization completed for call_id=%s", call_id or "unknown")
+            break
         except Exception as e:
             if attempt < max_retries - 1:
                 sleep_time = min(2 ** attempt, 10)
-                logger.error(f"Summarization attempt {attempt + 1} failed: {e}. Retrying in {sleep_time} seconds...")
-                time.sleep(sleep_time)
+                logger.warning(
+                    "Summarization attempt %s/%s failed for call_id=%s: %s. Retrying in %s seconds...",
+                    attempt + 1,
+                    max_retries,
+                    call_id or "unknown",
+                    e,
+                    sleep_time,
+                )
+                sleep(sleep_time)
             else:
                 error_msg = f"Summarization failed after {max_retries} attempts: {e}"
                 with AuditLogger(_SessionFactory) as audit:
@@ -85,7 +95,7 @@ def run_summarization(state: PipeLineState) -> PipeLineState:
                         caller_id="unknown",
                         details={"error": error_msg, "state": "summarization_failed"}
                     )
-                logger.error(error_msg)
+                logger.error("Summarization failed for call_id=%s after %s attempts: %s", call_id or "unknown", max_retries, e)
                 state["summary"] = {
                             "is_valid": False,
                             "reason": error_msg,

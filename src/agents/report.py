@@ -26,9 +26,9 @@ def compile_report(state: PipeLineState) -> PipeLineState:
         The updated PipeLineState with call_report field populated
     """
 
-    logger.info(f"Compiling report for call_id: {state.get('audio_input').call_id if state.get('audio_input') else 'unknown'}")
     audio_input = state.get("audio_input")
     call_id = audio_input.call_id if audio_input else "unknown"
+    logger.info("Compiling report for call_id=%s", call_id)
 
     transcript_text = None
     transcription = None
@@ -44,7 +44,12 @@ def compile_report(state: PipeLineState) -> PipeLineState:
         elif isinstance(summary, dict):
             summary = summary.get("summary")
 
-    logger.info(f"Compiling report for call_id: {call_id}, transcript length: {len(transcript_text) if transcript_text else 0}, summary length: {len(summary) if summary else 0}")
+    logger.info(
+        "Report assembly inputs: call_id=%s, transcript_length=%s, summary_length=%s",
+        call_id,
+        len(transcript_text) if transcript_text else 0,
+        len(summary) if summary else 0,
+    )
 
     qa_scores = state.get("qa_score")
     if qa_scores is not None and isinstance(qa_scores, dict):
@@ -59,8 +64,8 @@ def compile_report(state: PipeLineState) -> PipeLineState:
         pii_scan = state["pii_scan"]
 
     status = state.get("state", "completed")
-    logger.info(f"Compiling report for call_id: {call_id}, status: {status}")
     error = state.get("error")
+    logger.info("Compiling report for call_id=%s with pipeline_status=%s", call_id, status)
     if error:
         status = "failed"
 
@@ -77,15 +82,15 @@ def compile_report(state: PipeLineState) -> PipeLineState:
             status=status,
             error=error,
         )
-        logger.info(f"status: {report.status}, audio_filename: {report.audio_filename}")
+        logger.info("Call report built successfully for call_id=%s with status=%s", call_id, report.status)
     except Exception as e:
-        logger.error(f"Failed to create CallReport for call_id: {call_id}, error: {e}", exc_info=True)
+        logger.exception("Failed to create CallReport for call_id=%s", call_id)
         raise
 
     state = {
         "call_report": report
     }
-    logger.info(f"status: {state['call_report'].status}, audio_filename: {state['call_report'].audio_filename}")
+    logger.info("Prepared final report state for call_id=%s, status=%s", call_id, state["call_report"].status)
     return state
 
 
@@ -99,11 +104,11 @@ def persist_report(state: PipeLineState) -> PipeLineState:
         The updated state
     """
 
-    logger.info(f"Persisting report for call_id: {state.get('call_report').call_id if state.get('call_report') else 'unknown'}")
+    logger.info("Persisting report for call_id=%s", state.get("call_report").call_id if state.get("call_report") else "unknown")
     try:
         state = compile_report(state)
         report = state["call_report"]
-        logger.info(f"Persisting report for call_id: {report.call_id}, status: {report.status}, audio_filename: {report.audio_filename}")
+        logger.info("Writing report to database for call_id=%s with status=%s", report.call_id, report.status)
         session = get_session()
         try:
             call_record = CallRecord(
@@ -119,6 +124,7 @@ def persist_report(state: PipeLineState) -> PipeLineState:
             session.add(call_record)
             session.commit()
             state["state"] = "persisted"
+            logger.info("Report persisted successfully for call_id=%s", report.call_id)
         finally:
             session.close()
 
@@ -127,6 +133,7 @@ def persist_report(state: PipeLineState) -> PipeLineState:
     except Exception as e:
         state["state"] = "persistence_failed"
         state["error"] = str(e)
+        logger.exception("Report persistence failed for call_id=%s", state.get("call_report").call_id if state.get("call_report") else "unknown")
         return state
 
 
@@ -217,7 +224,6 @@ def generate_report_pdf(state: PipeLineState) -> bytes:
         qa_dict = call_report.qa_scores.model_dump() if hasattr(call_report.qa_scores, 'model_dump') else call_report.qa_scores
 
         for key, value in qa_dict.items():
-            logger.info(f"Processing QA score: {key} = {value}")
             if key in ['professionalism', 'empathy', 'problem_resolution', 'compliance', 'communication_clarity', 'overall_score'] and value is not None:
                 try:
                     score_val = float(value) if isinstance(value, (int, float)) else 0
@@ -296,7 +302,7 @@ def generate_report_json(state: PipeLineState) -> str:
     """
     call_report = state.get("call_report")
     if not call_report:
-        logger.error("No call report found in state")
+        logger.warning("No call report found in state for JSON export")
         return "{}"
 
     return call_report.model_dump_json(indent=2)
