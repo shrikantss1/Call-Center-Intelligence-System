@@ -2,8 +2,14 @@ from src.utils.config import get_logger
 from time import sleep
 from src.utils.llm_factory import llm
 from src.graph.state import QAScoringResult, PipeLineState
+from src.security.audit import AuditLogger
+from src.database.connection import get_engine
+from sqlalchemy.orm import sessionmaker
 
 logger = get_logger("qa_scoring")
+
+_engine = get_engine()
+_SessionFactory = sessionmaker(bind=_engine)
 
 DIMENSION_WEIGHTS = {
     "professionalism": 0.15,
@@ -94,11 +100,14 @@ def run_qa_scoring(state: PipeLineState) -> PipeLineState:
         PipeLineState: The updated state after QA scoring.
     """
     if "transcription" not in state or state["transcription"] is None:
+
         state["qa_score"] = {
             "is_valid": False,
             "reason": "Transcription not available for QA scoring.",
             "qa_score": None,
         }
+        state["state"] = "qa_scoring_failed"
+        state["error"] = "Transcription not available for QA scoring."
         return state
 
     if "summary" not in state or state["summary"] is None:
@@ -107,6 +116,8 @@ def run_qa_scoring(state: PipeLineState) -> PipeLineState:
             "reason": "Summary not available for QA scoring.",
             "qa_score": None,
         }
+        state["state"] = "qa_scoring_failed"
+        state["error"] = "Summary not available for QA scoring."
         return state
 
     transcription = state["transcription"]
@@ -129,6 +140,14 @@ def run_qa_scoring(state: PipeLineState) -> PipeLineState:
 {summary.get('summary', summary) if isinstance(summary, dict) else summary.summary}
 
 Provide fair, baseline-anchored scores across all five dimensions. Be specific with your feedback and cite timestamps."""
+
+    with AuditLogger(_SessionFactory) as audit:
+        audit.log(
+            call_id=call_id or "unknown",
+            action="QA_SCORING_STARTED",
+            caller_id="unknown",
+            details={"transcript_segments": len(transcription.segments), "summary_available": summary is not None}
+        )
 
     max_retries = 3
     for attempt in range(max_retries):
@@ -157,6 +176,7 @@ Provide fair, baseline-anchored scores across all five dimensions. Be specific w
             scoring_result.call_id = call_id
 
             state["qa_score"] = scoring_result
+            state["state"] = "qa_scoring_complete"
             logger.info(f"QA scoring completed for call {call_id}: overall_score={scoring_result.overall_score}")
             break
 
@@ -166,12 +186,22 @@ Provide fair, baseline-anchored scores across all five dimensions. Be specific w
                 logger.error(f"QA scoring attempt {attempt + 1} failed: {e}. Retrying in {sleep_time} seconds...")
                 sleep(sleep_time)
             else:
+                error_msg = f"QA scoring failed after {max_retries} attempts: {e}"
+                with AuditLogger(_SessionFactory) as audit:
+                    audit.log(
+                        call_id=call_id or "unknown",
+                        action="QA_SCORING_FAILED",
+                        caller_id="unknown",
+                        details={"error": error_msg, "state": "qa_scoring_failed"}
+                    )
                 state["qa_score"] = {
                     "is_valid": False,
-                    "reason": f"QA scoring failed after {max_retries} attempts: {e}",
+                    "reason": error_msg,
                     "qa_score": None,
                 }
                 logger.error(f"QA scoring failed for call {call_id}: {e}")
+                state["state"] = "qa_scoring_failed"
+                state["error"] = error_msg
                 return state
 
     return state

@@ -208,7 +208,6 @@ class TestRunIntakeEmptyAudio:
         assert result_state["intake_result"]["is_valid"] is False
         assert result_state["intake_result"]["reason"] == "File is empty."
         assert result_state["intake_result"]["properties"] is None
-        assert result_state["pii_scan"].pii_detected is False
 
 
 class TestRunIntakeUnsupportedFormat:
@@ -242,7 +241,6 @@ class TestRunIntakeUnsupportedFormat:
         assert result_state["intake_result"]["is_valid"] is False
         assert result_state["intake_result"]["reason"] == "Unsupported or unrecognized audio format."
         assert result_state["intake_result"]["properties"] is None
-        assert result_state["pii_scan"].pii_detected is False
 
     @patch('src.agents.intake.validate_audio')
     def test_multiple_unsupported_formats(self, mock_validate_audio):
@@ -442,7 +440,6 @@ class TestRunIntakeDurationValidation:
         # Assertions
         assert result_state["intake_result"]["is_valid"] is False
         assert "too long" in result_state["intake_result"]["reason"]
-        assert result_state["pii_scan"].pii_detected is False
 
     @patch('src.agents.intake.validate_audio')
     @patch('src.agents.intake.extract_audio_properties')

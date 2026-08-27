@@ -256,15 +256,15 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
     try:
         with AuditLogger(_SessionFactory) as audit:
             # Log transcription start
+            audio_hash = _compute_audio_hash(audio_bytes)
             audit.log(
                 call_id=call_id,
                 action="TRANSCRIPTION_STARTED",
                 caller_id=caller_id or "unknown",
-                details={"filename": filename, "audio_hash_partial": _compute_audio_hash(audio_bytes)[:8]}
+                details={"filename": filename, "audio_hash_partial": audio_hash[:8]}
             )
 
-            # Compute hash and check cache
-            audio_hash = _compute_audio_hash(audio_bytes)
+            # Check cache
             cached_result = _check_cache(audio_hash)
             if cached_result:
                 audit.log(
@@ -274,6 +274,7 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
                     details={"audio_hash": audio_hash, "segments_count": len(cached_result.segments)}
                 )
                 state["transcription"] = cached_result
+                state["state"] = "transcribed"
                 return state
 
             audit.log(
@@ -285,13 +286,28 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
 
         logger.info(f"Transcribing audio file: {filename}")
         audio_stream = BytesIO(audio_bytes)
-        segments, info = model.transcribe(
-            audio_stream,
-            beam_size=1,
-            vad_filter=True,
-            vad_parameters={"min_silence_duration_ms": 300},
-            word_timestamps=True,
-            condition_on_previous_text=False)
+
+        try:
+            segments, info = model.transcribe(
+                audio_stream,
+                beam_size=1,
+                vad_filter=True,
+                vad_parameters={"min_silence_duration_ms": 300},
+                word_timestamps=True,
+                condition_on_previous_text=False,
+            )
+        except Exception as e:
+            logger.error(f"Whisper transcription failed for {filename}: {str(e)}")
+            with AuditLogger(_SessionFactory) as audit:
+                audit.log(
+                    call_id=call_id,
+                    action="TRANSCRIPTION_FAILED",
+                    caller_id=caller_id or "unknown",
+                    details={"error": str(e), "filename": filename}
+                )
+            state["error"] = str(e)
+            state["state"] = "transcription_failed"
+            return state
 
         segments = list(segments)
 
@@ -322,6 +338,8 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
                 injection_reason=injection_reason
             )
             state["transcription"] = transcription_result
+            state["state"] = "flagged_for_review"
+            state["error"] = injection_reason
             return state
 
         diarizer = _get_diarizer()
@@ -363,6 +381,7 @@ def transcribe_audio(state: PipeLineState) -> PipeLineState:
             )
 
         state["transcription"] = transcription_result
+        state["state"] = "transcribed"
         return state
 
     except Exception as e:

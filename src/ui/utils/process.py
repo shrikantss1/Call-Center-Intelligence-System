@@ -44,7 +44,7 @@ def process_call(
     initial_state: PipeLineState = {
         "audio_input": AudioInput(
             audio_bytes=audio_bytes,
-            call_id=caller_id or None,
+            caller_id=caller_id or None,
             department=department or None,
         ),
     }
@@ -63,7 +63,7 @@ def process_call(
     # Extract results from state
     transcription = final_state.get("transcription")
     if transcription and hasattr(transcription, "segments"):
-        transcript = "\n".join([f"[{seg.speaker}] - {seg.text}" for seg in transcription.segments])
+        transcript = "\n".join([f"[{seg.speaker}] {seg.start_time:.2f}-{seg.end_time:.2f}: {seg.text}" for seg in transcription.segments])
     else:
         transcript = ""
 

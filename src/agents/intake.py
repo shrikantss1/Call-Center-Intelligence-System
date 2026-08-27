@@ -59,8 +59,6 @@ def scan_metadata_for_pii(metadata: Dict[str, str]) -> PIIScanResult:
 
 # Constants and helpers for failed intake results
 _EMPTY_AUDIO_PROPS = None
-_EMPTY_PII = PIIScanResult(pii_detected=False, affected_fields=[])
-
 
 def _make_failed_result(reason: str):
     return {
@@ -115,7 +113,8 @@ def run_intake(state: PipeLineState) -> PipeLineState:
                     details={"filename": filename, "error": validation_result.error}
                 )
             state["intake_result"] = _make_failed_result(validation_result.error)
-            state["pii_scan"] = _EMPTY_PII
+            state["state"] = "intake_failed"
+            state["error"] = validation_result.error
             return state
 
         with AuditLogger(_SessionFactory) as audit:
@@ -139,7 +138,8 @@ def run_intake(state: PipeLineState) -> PipeLineState:
                     details={"filename": filename, "duration_seconds": properties.duration_seconds, "error": validation_result.error}
                 )
             state["intake_result"] = _make_failed_result(validation_result.error)
-            state["pii_scan"] = _EMPTY_PII
+            state["state"] = "intake_failed"
+            state["error"] = validation_result.error
             return state
 
         with AuditLogger(_SessionFactory) as audit:
@@ -176,6 +176,8 @@ def run_intake(state: PipeLineState) -> PipeLineState:
                 )
             state["pii_scan"] = pii_result
             state["intake_result"] = _make_failed_result(f"PII detected in metadata fields: {pii_result.affected_fields}")
+            state["state"] = "intake_failed"
+            state["error"] = f"PII detected in metadata fields: {pii_result.affected_fields}"
             return state
         else:
             print("No PII detected in metadata fields.")
@@ -203,6 +205,7 @@ def run_intake(state: PipeLineState) -> PipeLineState:
                 "reason": None,
                 "properties": properties
             }
+        state["state"] = "intake_complete"
         return state
 
     except Exception as e:
